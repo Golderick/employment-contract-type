@@ -1,0 +1,273 @@
+//LG5.1//
+version = 5.1
+infile 'simDat.dat'
+
+model
+title 'y1: no; y2: no | <%=rep%>' ;
+options
+   maxthreads=8 ;
+   algorithm
+      tolerance=1e-008 emtolerance=0.01 emiterations=500 nriterations=10000 ;
+   startvalues
+      seed=123 sets=3200 tolerance=1e-005 iterations=100 ;
+   bayes
+      categorical=1 variances=1 latent=1 poisson=1 ;
+   montecarlo
+      seed=123 sets=0 replicates=500 tolerance=1e-008 ;
+   quadrature nodes=10 ;
+   missing excludeall ;
+   output
+      parameters=first betaopts=wl standarderrors profile probmeans=posterior
+      loadings bivariateresiduals estimatedvalues=model reorderclasses
+      write='output-<%=simNam%>.csv' ;
+variables
+   dependent y1 nominal 3, y2 nominal 3 ;
+   independent i nominal, z nominal ;
+   latent
+      cluster nominal 3 ;
+equations
+   cluster <- 1 + i + z ;
+   y1      <- 1 + cluster ;
+   y2      <- 1 + cluster ;
+end model
+
+
+model
+title 'y1: no; y2: uniform | <%=rep%>' ;
+options
+   maxthreads=8 ;
+   algorithm
+      tolerance=1e-008 emtolerance=0.01 emiterations=500 nriterations=10000 ;
+   startvalues
+      seed=123 sets=3200 tolerance=1e-005 iterations=100 ;
+   bayes
+      categorical=1 variances=1 latent=1 poisson=1 ;
+   montecarlo
+      seed=123 sets=0 replicates=500 tolerance=1e-008 ;
+   quadrature nodes=10 ;
+   missing excludeall ;
+   output
+      parameters=first betaopts=wl standarderrors profile probmeans=posterior
+      loadings bivariateresiduals estimatedvalues=model reorderclasses
+      append='output-<%=simNam%>.csv' ;
+variables
+   dependent y1 nominal 3, y2 nominal 3 ;
+   independent i nominal, z nominal ;
+   latent
+      cluster nominal 3 ;
+equations
+   cluster <- 1 + i + z ;
+   y1      <- 1 + cluster  ;
+   y2      <- 1 + cluster + z ;
+end model
+
+
+model
+title 'y1: no; y2: non-uniform | <%=rep%>' ;
+options
+   maxthreads=8 ;
+   algorithm
+      tolerance=1e-008 emtolerance=0.01 emiterations=500 nriterations=10000 ;
+   startvalues
+      seed=123 sets=3200 tolerance=1e-005 iterations=100 ;
+   bayes
+      categorical=1 variances=1 latent=1 poisson=1 ;
+   montecarlo
+      seed=123 sets=0 replicates=500 tolerance=1e-008 ;
+   quadrature nodes=10 ;
+   missing excludeall ;
+   output
+      parameters=first betaopts=wl standarderrors profile probmeans=posterior
+      loadings bivariateresiduals estimatedvalues=model reorderclasses
+      append='output-<%=simNam%>.csv' ;
+variables
+   dependent y1 nominal 3, y2 nominal 3 ;
+   independent i nominal, z nominal ;
+   latent
+      cluster nominal 3 ;
+equations
+   cluster <- 1 + i + z ;
+   y1      <- 1 + cluster  ;
+   y2      <- 1 + cluster + z|cluster ;
+end model
+
+
+model
+title 'y1: uniform; y2: no | <%=rep%>' ;
+options
+   maxthreads=8 ;
+   algorithm
+      tolerance=1e-008 emtolerance=0.01 emiterations=500 nriterations=10000 ;
+   startvalues
+      seed=123 sets=3200 tolerance=1e-005 iterations=100 ;
+   bayes
+      categorical=1 variances=1 latent=1 poisson=1 ;
+   montecarlo
+      seed=123 sets=0 replicates=500 tolerance=1e-008 ;
+   quadrature nodes=10 ;
+   missing excludeall ;
+   output
+      parameters=first betaopts=wl standarderrors profile probmeans=posterior
+      loadings bivariateresiduals estimatedvalues=model reorderclasses
+      append='output-<%=simNam%>.csv' ;
+variables
+   dependent y1 nominal 3, y2 nominal 3 ;
+   independent i nominal, z nominal ;
+   latent
+      cluster nominal 3 ;
+equations
+   cluster <- 1 + i + z ;
+   y1      <- 1 + cluster + z ;
+   y2      <- 1 + cluster  ;
+end model
+
+
+model
+title 'y1: uniform; y2: uniform | <%=rep%>' ;
+options
+   maxthreads=8 ;
+   algorithm
+      tolerance=1e-008 emtolerance=0.01 emiterations=500 nriterations=10000 ;
+   startvalues
+      seed=123 sets=3200 tolerance=1e-005 iterations=100 ;
+   bayes
+      categorical=1 variances=1 latent=1 poisson=1 ;
+   montecarlo
+      seed=123 sets=0 replicates=500 tolerance=1e-008 ;
+   quadrature nodes=10 ;
+   missing excludeall ;
+   output
+      parameters=first betaopts=wl standarderrors profile probmeans=posterior
+      loadings bivariateresiduals estimatedvalues=model reorderclasses
+      append='output-<%=simNam%>.csv' ;
+variables
+   dependent y1 nominal 3, y2 nominal 3 ;
+   independent i nominal, z nominal ;
+   latent
+      cluster nominal 3 ;
+equations
+   cluster <- 1 + i + z ;
+   y1      <- 1 + cluster + z ;
+   y2      <- 1 + cluster + z ;
+end model
+
+
+model
+title 'y1: uniform; y2: non-uniform | <%=rep%>' ;
+options
+   maxthreads=8 ;
+   algorithm
+      tolerance=1e-008 emtolerance=0.01 emiterations=500 nriterations=10000 ;
+   startvalues
+      seed=123 sets=3200 tolerance=1e-005 iterations=100 ;
+   bayes
+      categorical=1 variances=1 latent=1 poisson=1 ;
+   montecarlo
+      seed=123 sets=0 replicates=500 tolerance=1e-008 ;
+   quadrature nodes=10 ;
+   missing excludeall ;
+   output
+      parameters=first betaopts=wl standarderrors profile probmeans=posterior
+      loadings bivariateresiduals estimatedvalues=model reorderclasses
+      append='output-<%=simNam%>.csv' ;
+variables
+   dependent y1 nominal 3, y2 nominal 3 ;
+   independent i nominal, z nominal ;
+   latent
+      cluster nominal 3 ;
+equations
+   cluster <- 1 + i + z ;
+   y1      <- 1 + cluster + z ;
+   y2      <- 1 + cluster + z|cluster ;
+end model
+
+
+model
+title 'y1: non-uniform; y2: no | <%=rep%>' ;
+options
+   maxthreads=8 ;
+   algorithm
+      tolerance=1e-008 emtolerance=0.01 emiterations=500 nriterations=10000 ;
+   startvalues
+      seed=123 sets=3200 tolerance=1e-005 iterations=100 ;
+   bayes
+      categorical=1 variances=1 latent=1 poisson=1 ;
+   montecarlo
+      seed=123 sets=0 replicates=500 tolerance=1e-008 ;
+   quadrature nodes=10 ;
+   missing excludeall ;
+   output
+      parameters=first betaopts=wl standarderrors profile probmeans=posterior
+      loadings bivariateresiduals estimatedvalues=model reorderclasses
+      append='output-<%=simNam%>.csv' ;
+variables
+   dependent y1 nominal 3, y2 nominal 3 ;
+   independent i nominal, z nominal ;
+   latent
+      cluster nominal 3 ;
+equations
+   cluster <- 1 + i + z ;
+   y1      <- 1 + cluster + z|cluster ;
+   y2      <- 1 + cluster  ;
+end model
+
+
+model
+title 'y1: non-uniform; y2: uniform | <%=rep%>' ;
+options
+   maxthreads=8 ;
+   algorithm
+      tolerance=1e-008 emtolerance=0.01 emiterations=500 nriterations=10000 ;
+   startvalues
+      seed=123 sets=3200 tolerance=1e-005 iterations=100 ;
+   bayes
+      categorical=1 variances=1 latent=1 poisson=1 ;
+   montecarlo
+      seed=123 sets=0 replicates=500 tolerance=1e-008 ;
+   quadrature nodes=10 ;
+   missing excludeall ;
+   output
+      parameters=first betaopts=wl standarderrors profile probmeans=posterior
+      loadings bivariateresiduals estimatedvalues=model reorderclasses
+      append='output-<%=simNam%>.csv' ;
+variables
+   dependent y1 nominal 3, y2 nominal 3 ;
+   independent i nominal, z nominal ;
+   latent
+      cluster nominal 3 ;
+equations
+   cluster <- 1 + i + z ;
+   y1      <- 1 + cluster + z|cluster ;
+   y2      <- 1 + cluster + z ;
+end model
+
+
+model
+title 'y1: non-uniform; y2: non-uniform | <%=rep%>' ;
+options
+   maxthreads=8 ;
+   algorithm
+      tolerance=1e-008 emtolerance=0.01 emiterations=500 nriterations=10000 ;
+   startvalues
+      seed=123 sets=3200 tolerance=1e-005 iterations=100 ;
+   bayes
+      categorical=1 variances=1 latent=1 poisson=1 ;
+   montecarlo
+      seed=123 sets=0 replicates=500 tolerance=1e-008 ;
+   quadrature nodes=10 ;
+   missing excludeall ;
+   output
+      parameters=first betaopts=wl standarderrors profile probmeans=posterior
+      loadings bivariateresiduals estimatedvalues=model reorderclasses
+      append='output-<%=simNam%>.csv' ;
+variables
+   dependent y1 nominal 3, y2 nominal 3 ;
+   independent i nominal, z nominal ;
+   latent
+      cluster nominal 3 ;
+equations
+   cluster <- 1 + i + z ;
+   y1      <- 1 + cluster + z|cluster ;
+   y2      <- 1 + cluster + z|cluster ;
+end model
+

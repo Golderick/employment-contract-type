@@ -1,0 +1,289 @@
+---
+title: "Stepwise LRT method"
+subtitle: "2018 dataset"
+author: "Frederick Restrepo Estrada"
+date: "2022"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+
+Made in **R version 4.1.3 (2022-03-10)**
+
+
+Data used: `snapshot2018you.sav`
+
+The dataset is a trimmed version (snapshot) of a dataset made available by CBS. It is not publicly available.
+
+
+Use this template as follows:
+
+1. In the chunk under "Define", indicate if restrictions are considered. If models with restrictions are considered, comment out  `resTes <- ""`. If model with restrictions are **not** considered, comment out `resTes <- "R"` (`ctrl+shift+C`). 
+
+2. Run all chunks (`ctrl+alt+r`).
+
+
+Load libraries.
+```{r}
+library(brew)
+library(haven)
+```
+
+Define functions.
+```{r}
+# function for extracting LG output
+extract.output <- function(outPath, Nob) {
+  
+  output <- readLines(con = outPath) # read text lines
+  output <- output[-1] # remove headers that are created when using `write` in LG
+  output <- strsplit(x = output, split = ",") # LG creates `.csv` file
+  maxLength <- max( sapply(X = output, FUN = length) ) # max number of columns in `.csv` file
+  output <- lapply(X = output, FUN = `length<-`, maxLength) # create elements of equal length needed for dataframe
+  output <- as.data.frame( do.call(rbind, output) ) # create dataframe
+  row.names(output) <- NULL
+  
+  nams <- unique( output[ , 1] )
+  note <- output[ which( output[ , 4] == 0 ), 5 ]
+  note[is.na(note)] <- "OK"
+  
+  LLs <- as.numeric( output[ which( output[ , 5] == "Statistics" ), 6 ] ) # log-likelihoods
+  # LPs <- as.numeric( output[ which( output[ , 5] == "Statistics" ), 8 ] ) # log-posteriors
+  # L2s <- as.numeric( output[ which( output[ , 5] == "Statistics" ), 9 ] ) # likelihood-ratio chi-square statistics
+  # BVRs <- as.numeric( output[ which( output[ , 5] == "Statistics" ), 13 ] ) # total bivariate residuals
+  Npars <- as.numeric( rowSums( !is.na(output[ which( output[, 5] == "Parameters" ), 6:ncol(output) ] ) ) )
+  AIC.LL <- -2*LLs + Npars*2
+  BIC.LL <- -2*LLs + Npars*log(Nob)
+  # BIC.L2 <- L2s - df*log(Nob)
+  
+  return( data.frame(nam = nams, LL = LLs, Npars = Npars, AIC.LL = AIC.LL, BIC.LL = BIC.LL, note = note) )
+}
+
+# function for comparing models with a LRT
+likelihood.ratio.test <- function(LL1, LL2, Npar1, Npar2) {
+  LR <- -2*(LL1 - LL2)
+  DFdif <- Npar2 - Npar1
+  pval <- pchisq(q = LR, df = DFdif, lower.tail = FALSE)
+  return( list(LRTS = LR, df = DFdif,  p = pval) )
+}
+```
+
+
+#### Stepwise LRT method for a single covariate Z
+
+Define.
+```{r}
+# restriction 
+# resTes <- ""
+resTes <- "R"
+
+covars <- c(
+  "age_group",
+  "company_size",
+  "economic_activity",
+  "education_level",
+  "interview_style",
+  "job_length",
+  "migration_background",
+  "software_cluster",
+  "work_hours"
+  )
+
+dat <- read_sav(file = "snapshot2018you.sav")
+N <- nrow(dat)
+```
+
+Step1-5.
+```{r}
+bestModels <- data.frame()
+
+for ( i in 1:length(covars) ) {
+  
+  aTab <- table( dat[, "contract_ER"][[1]], dat[, covars[i]][[1]] )
+  
+  if ( resTes == ""  ) {
+    restrict <- "without"
+  } else { # R7 and R8
+    restrict <- ifelse(test = any(aTab == 0), yes = "with", no = "without")
+  }
+  
+  outNam1 <- paste0("output-", covars[i], "-2018.csv")
+  outNam2 <- paste0("output-step2-", covars[i], "-2018.csv")
+  
+  a1 <- extract.output(outPath = outNam1, Nob = N) # LG output for step1, 3, 4, and 5
+  a2 <- extract.output(outPath = outNam2, Nob = N) # LG output for step2
+  
+  ###########
+  ## STEP1 ##
+  ###########
+  
+  resultLRT <- likelihood.ratio.test(
+    LL1 =   a1[ a1$nam == "ER: no DIF; LFS: no DIF"                  , "LL" ],
+    LL2 =   a1[ a1$nam == "ER: non-uniform DIF; LFS: non-uniform DIF", "LL" ],
+    Npar1 = a1[ a1$nam == "ER: no DIF; LFS: no DIF"                  , "Npars" ],
+    Npar2 = a1[ a1$nam == "ER: non-uniform DIF; LFS: non-uniform DIF", "Npars" ] )
+  
+  if (resultLRT$p > 0.05) {
+    ERdif2 <- ERdif4 <- "ER: no DIF"
+    LFSdif2 <- LFSdif4 <- "LFS: no DIF"
+  } else {
+  
+    ###########
+    ## STEP2 ##
+    ###########
+      
+    # M2.0.1 vs. M2.1.1
+    resultLRT <- likelihood.ratio.test(
+      LL1 =   a2[ a2$nam == "ER: no DIF"         , "LL" ], 
+      LL2 =   a2[ a2$nam == "ER: non-uniform DIF", "LL" ],
+      Npar1 = a2[ a2$nam == "ER: no DIF"         , "Npars" ],
+      Npar2 = a2[ a2$nam == "ER: non-uniform DIF", "Npars" ] )
+    # DIF ER (based on step2)
+    ERdif2 <- ifelse( test = resultLRT$p > 0.05, yes = "ER: no DIF", no = "ER: non-uniform DIF" )
+  
+    # M2.0.2 vs. 2.1.2
+    resultLRT <- likelihood.ratio.test(
+      LL1 =   a2[ a2$nam == "LFS: no DIF"         , "LL" ], 
+      LL2 =   a2[ a2$nam == "LFS: non-uniform DIF", "LL" ],
+      Npar1 = a2[ a2$nam == "LFS: no DIF"         , "Npars" ],
+      Npar2 = a2[ a2$nam == "LFS: non-uniform DIF", "Npars" ] )
+    # DIF LFS (based on step2)
+    LFSdif2 <- ifelse(test = resultLRT$p > 0.05, yes = "LFS: no DIF", no = "LFS: non-uniform DIF")
+    
+    if (paste0(ERdif2, "; ", LFSdif2) == "ER: no DIF; LFS: no DIF") {
+      ERdif4 <- ERdif2
+      LFSdif4 <- LFSdif2 
+      print( paste0("failure step2; data: ", covars[i], "; M3.0 = M1.0") )
+    } else {
+      
+      ###########
+      ## STEP3 ##
+      ###########
+      
+      # M1.0 vs. M3.0
+      resultLRT <- likelihood.ratio.test(
+        LL1 =   a1[ a1$nam == "ER: no DIF; LFS: no DIF",     "LL" ], # M1.0
+        LL2 =   a1[ a1$nam == paste0(ERdif2, "; ", LFSdif2), "LL" ], # M3.0
+        Npar1 = a1[ a1$nam == "ER: no DIF; LFS: no DIF",     "Npars" ],
+        Npar2 = a1[ a1$nam == paste0(ERdif2, "; ", LFSdif2), "Npars" ] )
+      if (resultLRT$p > 0.05) { print( paste0("failure step3; M1.0 vs. M3.0; data: ", covars[i]) ) }
+      
+      # M3.0 vs. M1.1
+      resultLRT <- likelihood.ratio.test(
+        LL1   = a1[ a1$nam == paste0(ERdif2, "; ", LFSdif2),               "LL" ], # M3.0
+        LL2   = a1[ a1$nam == "ER: non-uniform DIF; LFS: non-uniform DIF", "LL" ], # M1.1
+        Npar1 = a1[ a1$nam == paste0(ERdif2, "; ", LFSdif2),               "Npars" ],
+        Npar2 = a1[ a1$nam == "ER: non-uniform DIF; LFS: non-uniform DIF", "Npars" ] )
+      if (resultLRT$p <= 0.05) { print( paste0("failure step3; M3.0 vs. M1.1; data: ", covars[i]) ) }
+    
+      ###########
+      ## STEP4 ##
+      ###########
+      
+      # DIF ER (based on step4)
+      # M4.1 vs. M3.0
+      if (ERdif2 == "ER: no DIF") { ERdif4 <- "ER: no DIF"
+      } else if ( ERdif2 == "ER: non-uniform DIF" ) { # if there is something to be tested
+        resultLRT <- likelihood.ratio.test(
+          LL1 =   a1[ a1$nam == paste0("ER: uniform DIF; ", LFSdif2), "LL" ], # M4.1
+          LL2 =   a1[ a1$nam == paste0(ERdif2,        "; ", LFSdif2), "LL" ], # M3.0
+          Npar1 = a1[ a1$nam == paste0("ER: uniform DIF; ", LFSdif2), "Npars" ],
+          Npar2 = a1[ a1$nam == paste0(ERdif2,        "; ", LFSdif2), "Npars" ] )
+        ERdif4 <- ifelse(test = resultLRT$p > 0.05, yes = "ER: uniform DIF", no = "ER: non-uniform DIF") 
+      }
+  
+      # DIF LFS (based on step4)
+      # M4.2 vs. M3.0
+      if (LFSdif2 == "LFS: no DIF") { LFSdif4 <- "LFS: no DIF"
+      } else if (LFSdif2 == "LFS: non-uniform DIF") { # if there is something to be tested
+        resultLRT <- likelihood.ratio.test(
+          LL1 =   a1[ a1$nam == paste0(ERdif2, "; LFS: uniform DIF" ), "LL" ], # M4.2
+          LL2 =   a1[ a1$nam == paste0(ERdif2, "; ", LFSdif2),         "LL" ], # M3.0
+          Npar1 = a1[ a1$nam == paste0(ERdif2, "; LFS: uniform DIF" ), "Npars" ],
+          Npar2 = a1[ a1$nam == paste0(ERdif2, "; ", LFSdif2),         "Npars" ] )
+        LFSdif4 <- ifelse(test = resultLRT$p > 0.05, yes = "LFS: uniform DIF", no = "LFS: non-uniform DIF" )
+      }
+      
+      ###########
+      ## STEP5 ##
+      ###########
+      
+      # M5.0 vs. M3.0
+      resultLRT <- likelihood.ratio.test(
+        LL1 =   a1[ a1$nam == paste0(ERdif4, "; ", LFSdif4), "LL" ], # M5.0
+        LL2 =   a1[ a1$nam == paste0(ERdif2, "; ", LFSdif2), "LL" ], # M3.0
+        Npar1 = a1[ a1$nam == paste0(ERdif4, "; ", LFSdif4), "Npars" ],
+        Npar2 = a1[ a1$nam == paste0(ERdif2, "; ", LFSdif2), "Npars" ] )
+      if (resultLRT$p <= 0.05) { print( paste0("failure step5; M5.0 vs. M3.0; data: ", covars[i]) ) }
+      
+      ############
+      ## STEP5R ##
+      ############
+  
+      if ( restrict == "with" ) {
+        
+      ## PART1 ##
+        
+      resultLRT <- likelihood.ratio.test(
+        LL1 =   a1[ a1$nam == paste0( paste0(ERdif4, " (R7)"), "; ", LFSdif4), "LL" ], # M5.0R7
+        LL2 =   a1[ a1$nam == paste0(        ERdif4,           "; ", LFSdif4), "LL" ], # M5.0
+        Npar1 = a1[ a1$nam == paste0( paste0(ERdif4, " (R7)"), "; ", LFSdif4), "Npars" ],
+        Npar2 = a1[ a1$nam == paste0(        ERdif4,           "; ", LFSdif4), "Npars" ] )
+      if (resultLRT$p > 0.05) { ERdif5_R7 <- paste0(ERdif4, " (R7)") }
+
+      resultLRT <- likelihood.ratio.test(
+        LL1 =   a1[ a1$nam == paste0( paste0(ERdif4, " (R8)"), "; ", LFSdif4), "LL" ], # M5.0R8
+        LL2 =   a1[ a1$nam == paste0(        ERdif4,           "; ", LFSdif4), "LL" ], # M5.0
+        Npar1 = a1[ a1$nam == paste0( paste0(ERdif4, " (R8)"), "; ", LFSdif4), "Npars" ],
+        Npar2 = a1[ a1$nam == paste0(        ERdif4,           "; ", LFSdif4), "Npars" ] )
+      if (resultLRT$p > 0.05) { ERdif5_R8 <- paste0(ERdif4, " (R8)") }
+        
+      ## PART2 ##
+        
+      if ( exists(x = "ERdif5_R7") & exists(x = "ERdif5_R8") ) {
+        resultLRT <- likelihood.ratio.test(
+          LL1 =   a1[ a1$nam == paste("ER: no DIF;", LFSdif4), "LL" ], # M5.0R9
+          LL2 =   a1[ a1$nam == paste0(ERdif4, "; ", LFSdif4), "LL" ], # M5.0
+          Npar1 = a1[ a1$nam == paste("ER: no DIF;", LFSdif4), "Npars" ],
+          Npar2 = a1[ a1$nam == paste0(ERdif4, "; ", LFSdif4), "Npars" ] )
+        if (resultLRT$p > 0.05) {
+          ERdif5_R9 <- "ER: no DIF"
+          print( paste0("failure step5R contradicts step2; data: ", covars[i] ) )
+        } else {
+          print( paste0("failure step5R; M5.0R9 vs. M5.0; data: ", covars[i]) )
+        }
+      }
+        
+      }
+      
+    }
+  }
+
+         if ( exists("ERdif5_R9") ) { finMod <- paste0(ERdif5_R9, "; ", LFSdif4) 
+  } else if ( exists("ERdif5_R8") ) { finMod <- paste0(ERdif5_R8, "; ", LFSdif4) # only structural DIF for ER
+  } else if ( exists("ERdif5_R7") ) { finMod <- paste0(ERdif5_R7, "; ", LFSdif4) # non-structural DIF for ER 
+  } else {                            finMod <- paste0(ERdif4,    "; ", LFSdif4) }
+
+  bestModels <- rbind(bestModels, a1[ a1$nam == finMod, ] )
+  ERdif5_R7 <- ERdif5_R8 <- ERdif5_R9 <- "" # create if it did not exists
+  rm(list = c("ERdif2", "LFSdif2", "ERdif4", "LFSdif4", "ERdif5_R7", "ERdif5_R8", "ERdif5_R9"))
+}
+
+bestModels <- cbind(covars, bestModels) # add column with covariate names
+names(bestModels)[1:2] <- c("covariate",  "description") # change column names
+row.names(bestModels) <- NULL
+bestModels
+```
+
+Save and clear.
+```{r}
+write.csv(x = bestModels,
+          file = ifelse( test = resTes == "",
+                         yes = paste0("final-LRT-2018.csv"),
+                         no =  paste0("final-LRT-", resTes, "-2018.csv") ),
+          row.names = FALSE)
+rm(list = ls())
+```
+

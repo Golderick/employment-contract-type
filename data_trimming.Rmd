@@ -1,0 +1,238 @@
+---
+title: "Creating snapshot dataset"
+author: "Frederick Restrepo Estrada"
+date: "22-6-2022"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+
+The original datasets (`sav` files) with matched ER-LFS-data were provided by CBS. The trimmed datasets are derived from these datasets. Both the original datasets and the trimmed datasets are not publicly available.
+
+Create a snapshot dataset as follows:
+
+1. In the chunk under "Load data", comment out the lines for all but one year (`ctrl+shift+C`).
+
+2. In the chunk under "Save snapshot datasets", comment out the lines for all but one age group.
+
+3. Run all chunks (`ctrl+alt+r`).
+
+
+Load libraries
+```{r load_data}
+library(haven)
+library(data.table)
+```
+
+
+### Create snapshot dataset(s)
+
+Load data
+```{r}
+# all LFS-cohors that started in 2016
+dataYear <- read_spss("HMMdata2016_2017_voor_Frederick.sav")
+year <- 2016
+
+# all LFS-cohors that started in 2017
+# dataYear <- read_spss("HMMdata2017_2018_voor_Frederick.sav")
+# year <- 2017
+
+# all LFS-cohors that started in 2018
+# dataYear <- read_spss("HMMdata2018_2019_voor_Frederick.sav")
+# year <- 2018
+
+# transform to datatable
+setDT(dataYear)
+```
+
+Inspect names
+```{r}
+names(dataYear)
+```
+
+Trim data
+```{r}
+# observations with records for both ER and LFS
+dataYearB <- dataYear[!is.na(contract) & !is.na(contractEBB), ]
+
+# first observation per respondent
+dataYearB <- dataYearB[, .SD[1], by = persnr]
+
+# 15-24 year-olds (young)
+dataYearYou <- dataYearB[LftKlasse == 1 | LftKlasse == 2]
+
+# 25-54 year-olds (middle-age)
+dataYearMid <- dataYearB[LftKlasse == 3 | LftKlasse == 4]
+
+# 55-74 year-olds (old)
+dataYearOld <- dataYearB[LftKlasse == 5 | LftKlasse == 6]
+```
+
+Clean data
+```{r}
+# 15-24 year-olds
+snapshotYearYou <- dataYearYou[, .(
+  person_number = persnr,
+  month_year = Maand,             # month with respect to January
+  cohort_number = cohort,
+  month_LFS = month0,             # month with respect to start LFS
+  contract_ER = contract,
+  # l1contract,
+  # l3contract,
+  contract_LFS = contractEBB,
+  # l3contractEBB,
+  # leeftijd,                     # numeric (detailed) version of "LftKlasse"
+  age_group = LftKlasse,
+  interview_style = proxy,
+  gender = geslacht,
+  migration_background = land,
+  education_level = opleiding,
+  economic_activity = SBIgroep,
+  # SBIgroep2,                    # subset of "SBIgroep" with a larger "other" category level
+  work_hours = Contracturen,
+  # Contracturen2,                # subset of "Contracturen" with a larger "other" category level
+  # BaanduurMaanden,              # numeric (detailed) version of "BaanduurMaanden"
+  job_length = BaanduurKlasse,
+  # BaanduurKlasse2,              # subset of "BaanduurKlasse" with a larger "other" category level
+  software_cluster= softwarecluster,
+  company_size = grootteklasse,
+  same_ER = ZelfdebaanPolis,
+  same_LFS = ZelfdewerkgevEBB
+  # gewichtp1,
+  # EBBGEWKWARTAALGEWICHTLONGA,
+  # EBBGEWSTARTGEWP1,
+  # EBBGEWJAARGEWICHTA,
+  # EBBGEWKWARTAALGEWICHTLONG,
+  # EBBGEWJAARGEWICHTLONGA,
+  # EBBGEWJAARGEWICHTP1A,
+  # EBBGEWKWARTAALGEWICHTA
+  )]
+
+# 25-54 year-olds
+snapshotYearMid <- dataYearMid[, .(
+  person_number = persnr,
+  month_year = Maand,             # month with respect to Januari
+  cohort_number = cohort,
+  month_LFS = month0,             # month with respect to start LFS
+  contract_ER = contract,
+  # l1contract,
+  # l3contract,
+  contract_LFS = contractEBB,
+  # l3contractEBB,
+  # leeftijd,                     # numeric (detailed) version of "LftKlasse"
+  age_group = LftKlasse,
+  interview_style = proxy,
+  gender = geslacht,
+  migration_background = land,
+  education_level = opleiding,
+  economic_activity = SBIgroep,
+  # SBIgroep2,                    # subset of "SBIgroep" with a larger "other" category level
+  work_hours = Contracturen,
+  # Contracturen2,                # subset of "Contracturen" with a larger "other" category level
+  # BaanduurMaanden,              # numeric (detailed) version of "BaanduurMaanden"
+  job_length = BaanduurKlasse,
+  # BaanduurKlasse2,              # subset of "BaanduurKlasse" with a larger "other" category level
+  software_cluster= softwarecluster,
+  company_size = grootteklasse,
+  same_ER = ZelfdebaanPolis,
+  same_LFS = ZelfdewerkgevEBB
+  # gewichtp1,
+  # EBBGEWKWARTAALGEWICHTLONGA,
+  # EBBGEWSTARTGEWP1,
+  # EBBGEWJAARGEWICHTA,
+  # EBBGEWKWARTAALGEWICHTLONG,
+  # EBBGEWJAARGEWICHTLONGA,
+  # EBBGEWJAARGEWICHTP1A,
+  # EBBGEWKWARTAALGEWICHTA
+  )]
+
+# 55-74 year-olds
+snapshotYearOld <- dataYearOld[, .(
+  person_number = persnr,
+  month_year = Maand,             # month with respect to Januari
+  cohort_number = cohort,
+  month_LFS = month0,             # month with respect to start LFS
+  contract_ER = contract,
+  # l1contract,
+  # l3contract,
+  contract_LFS = contractEBB,
+  # l3contractEBB,
+  # leeftijd,                     # numeric (detailed) version of "LftKlasse"
+  age_group = LftKlasse,
+  interview_style = proxy,
+  gender = geslacht,
+  migration_background = land,
+  education_level = opleiding,
+  economic_activity = SBIgroep,
+  # SBIgroep2,                    # subset of "SBIgroep" with a larger "other" category level
+  work_hours = Contracturen,
+  # Contracturen2,                # subset of "Contracturen" with a larger "other" category level
+  # BaanduurMaanden,              # numeric (detailed) version of "BaanduurMaanden"
+  job_length = BaanduurKlasse,
+  # BaanduurKlasse2,              # subset of "BaanduurKlasse" with a larger "other" category level
+  software_cluster= softwarecluster,
+  company_size = grootteklasse,
+  same_ER = ZelfdebaanPolis,
+  same_LFS = ZelfdewerkgevEBB
+  # gewichtp1,
+  # EBBGEWKWARTAALGEWICHTLONGA,
+  # EBBGEWSTARTGEWP1,
+  # EBBGEWJAARGEWICHTA,
+  # EBBGEWKWARTAALGEWICHTLONG,
+  # EBBGEWJAARGEWICHTLONGA,
+  # EBBGEWJAARGEWICHTP1A,
+  # EBBGEWKWARTAALGEWICHTA
+  )]
+```
+
+Save snapshot datasets
+```{r}
+# 15-24 year-olds
+write_sav( data = snapshotYearYou, path = paste0("snapshot", year, "you.sav") )
+
+# 25-54 year-olds
+# write_sav( data = snapshotYearMid, path = paste0("snapshot", year, "mid.sav") )
+
+# 55-74 year-olds
+# write_sav( data = snapshotYearOld, path = paste0("snapshot", year, "old.sav") )
+```
+
+
+### Extra information
+
+First observations
+```{r}
+sum( is.na(dataYear[, .SD[1], by = persnr][, contract]) )
+# ER observations are included at each time point
+
+sum( is.na(dataYear[, .SD[1], by = persnr][, contractEBB]) )
+# LFS observations are not included at each time point
+```
+
+Redundant variables
+```{r}
+all( attr(dataYear$SBIgroep2, "labels") %in% attr(dataYear$SBIgroep, "labels") )
+# "SBIgroep2" does not contain unique information
+
+all( attr(dataYear$Contracturen2, "labels") %in% attr(dataYear$Contracturen, "labels") )
+# "Contracturen2" does not contain unique information
+
+all( attr(dataYear$BaanduurKlasse2, "labels") %in% attr(dataYear$BaanduurKlasse, "labels") )
+# "BaanduurKlasse2" does not contain unique information
+```
+
+Number of respondents per age group
+```{r}
+# 15-24 year-olds
+nrow(dataYear[, .SD[1], by = persnr][LftKlasse == 1 | LftKlasse == 2])
+
+# 25-54 year-olds
+nrow(dataYear[, .SD[1], by = persnr][LftKlasse == 3 | LftKlasse == 4])
+
+# 55-74 year-olds
+nrow(dataYear[, .SD[1], by = persnr][LftKlasse == 5 | LftKlasse == 6])
+```
+

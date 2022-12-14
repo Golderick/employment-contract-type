@@ -1,0 +1,30 @@
+
+model
+title '<%=modNam%>' ;
+options
+   maxthreads=8 ;
+   algorithm 
+      tolerance=1e-008 emtolerance=0.01 emiterations=500 nriterations=10000 ;
+   startvalues
+      seed=123 sets=3200 tolerance=1e-005 iterations=100 ;
+   bayes
+      categorical=1 variances=1 latent=1 poisson=1 ;
+   montecarlo
+      seed=0 sets=0 replicates=500 tolerance=1e-008 ;
+   quadrature nodes=10 ;
+   missing excludeall ;
+   step3 modal ml ;
+   output      
+      parameters=first betaopts=wl standarderrors=robust profile=posterior
+      probmeans=posterior estimatedvalues=model reorderclasses
+      <%=outToDo%> ;
+variables
+   dependent <%=depenVar%> ;
+   independent gender nominal <%=indepVar%> ;
+   latent
+      cluster nominal posterior = ( cluster#1 cluster#2 cluster#3 ) ;
+equations
+   cluster <- 1 + gender <%=indepEqu%> ;
+   <%=indic%> <- 1 + cluster <%=aDIF%> ;
+   <%=aPar%>
+end model

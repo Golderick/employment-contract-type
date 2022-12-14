@@ -1,0 +1,175 @@
+---
+title: "Generate LG syntax"
+subtitle: "2016 dataset, step2 models"
+author: "Frederick Restrepo Estrada"
+date: "2022"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+
+Made in **R version 4.1.3 (2022-03-10)**
+
+
+Data used: `snapshot2016you.sav` and `data2016Step0.sav`
+
+The former dataset is a trimmed version (snapshot) of a dataset made available by CBS. The latter dataset was obtained with Latent GOLD. It was derived from the former dataset and it includes the posterior class membership probabilities for the respondents based on an LC model without added covariates (except for the identifying covariate). Both datasets are not publicly available.
+
+
+Create LG syntax as follows:
+
+1. In the chunk under "Define covariate to be tested", comment out the lines for all but covariate (`ctrl+shift+C`).
+
+2. Run all chunks (`ctrl+alt+r`).
+
+
+#### Creating all possible step2 models for a single covariate
+
+Load libraries.
+```{r}
+library(brew)
+library(haven)
+```
+
+Define covariate to be tested.
+```{r}
+# covar <- "age_group"
+# covar <- "company_size"         # unknown / not applicable
+# covar <- "economic_activity"    # unknown / not applicable
+# covar <- "education_level"      # unknown
+# covar <- "interview_style"
+# covar <- "job_length"           # unknown / not applicable
+# covar <- "migration_background"
+# covar <- "software_cluster"     # unknown / not applicable
+covar <- "work_hours"           # unknown / not applicable
+```
+
+Set default values.
+```{r}
+dat <- read_sav(file = "snapshot2016you.sav") # load dataset
+N <- nrow(dat) # number of cases
+nL <- 3 # number of latent classes
+
+nI <- nrow( unique( dat[, "contract_ER"] ) ) # number of indicator categories
+nC <- nrow( unique( dat[ , covar] ) ) # number of covariate categories
+
+#################
+## MAIN EFFECT ##
+#################
+
+# total number of "main" parameters
+num_M <- (nI-1)*(nC-1)
+
+# "main" parameters relating to derived frequencies
+# Restriction #7 (R7): parameters set to zero that relate to derived frequencies
+pM7 <- sort(
+  seq(from = num_M-(nI-1)+1, to = num_M, by = 1) # "right column" LG index
+)
+
+# "main" parameters relating to non-derived frequencies
+# Restriction #8 (R8): parameters set to zero that DO NOT relate to derived frequencies
+pM8 <- setdiff( 1:num_M, pM7 )
+
+########################
+## INTERACTION EFFECT ##
+########################
+
+# total number of "interaction" parameters
+num_I <- (nI-1)*(nC-1)*(nL-1)
+
+# "interaction" parameters relating to derived frequencies
+# Restriction #7 (R7): parameters set to zero that relate to derived frequencies
+pI7 <- sort(
+  seq(from = num_I-(nI-1)*(nL-1)+1, to = num_I, by = 1 ) # "right column" LG index
+)
+
+# "interaction" parameters relating to non-derived frequencies
+# Restriction #8 (R8): parameters set to zero that DO NOT relate to derived frequencies
+pI8 <- setdiff( 1:num_I, pI7 )
+```
+
+Set default values (continued).
+```{r}
+restrict <- ifelse( test = covar %in% c("company_size", "economic_activity", "education_level", "job_length", "software_cluster", "work_hours"), yes = "with", no = "without" ) # if the last category is "unknown" or "unknown / not applicable"
+
+if ( restrict == "with" ) {
+  z <- c("ER: no DIF", "ER: non-uniform DIF (R7)", "ER: non-uniform DIF (R8)", "ER: non-uniform DIF",
+         "LFS: no DIF", "LFS: non-uniform DIF (R7)", "LFS: non-uniform DIF (R8)", "LFS: non-uniform DIF")
+} else if ( restrict == "without" ) {
+  z <- c("ER: no DIF", "ER: non-uniform DIF",
+         "LFS: no DIF", "LFS: non-uniform DIF")
+}
+```
+
+Create LG syntax file.
+```{r}
+for ( i in 1:length(z) ) {
+  
+  modNam <- z[i]
+  outToDo <- paste0( ifelse(test = i == 1, yes = "write=", no = "append="),
+                     paste0("'output-step2-" , covar, "-2016.csv'") )
+  indic <- paste0( "contract_", strsplit(x = z[i], split = ":")[[1]][1] )
+  depenVar <- paste(indic, "nominal")
+  indepVar <- paste(",", covar, "nominal")
+  indepEqu <- paste("+", covar)
+  
+  if ( strsplit(x = z[i], split = ": ")[[1]][2] == "no DIF" ) {
+    aDIF <- paste0("")
+  } else { # non-uniform DIF
+    aDIF <- paste0("+ (a1) ", covar, " + (a2) cluster ", covar) }
+  
+  ###############
+  ## indicator ##
+  ###############
+  if ( grepl(pattern = "(R7)", x = z[i]) ) {
+    aPar <- paste( c( paste0("a1[1,", pM7, "] = 0;"),                    # main parameters
+                      paste0("a2[1,", pI7, "] = 0;") ), collapse = " " ) # interaction parameters
+  } else if ( grepl(pattern = "(R8)", x = z[i]) ) {
+    aPar <- paste( c( paste0("a1[1,", pM8, "] = 0;"),
+                      paste0("a2[1,", pI8, "] = 0;") ), collapse = " " )
+  } else { # no restriction
+    aPar <- ""
+  }
+  
+  ######################
+  ## assign variables ##
+  ######################
+  temEnv <- new.env()
+  
+  assign(x = "datPat", value = "data2016Step0.sav")
+  
+  assign(x = "modNam",   value = modNam,   envir = temEnv)
+  assign(x = "outToDo",  value = outToDo,  envir = temEnv)
+  assign(x = "indic",    value = indic,    envir = temEnv)
+  assign(x = "indepVar", value = indepVar, envir = temEnv)
+  assign(x = "depenVar", value = depenVar, envir = temEnv)
+  assign(x = "indepEqu", value = indepEqu, envir = temEnv)
+  assign(x = "aDIF",     value = aDIF,     envir = temEnv)
+  assign(x = "aPar",     value = aPar,     envir = temEnv)
+  
+  ########################
+  ## create syntax file ##
+  ########################
+  if (i == 1) {
+    synNam1 <- paste0("syntax-step2-", covar, "-2016.lgs")
+    template <- file( description = "template-syntax-file.brew", open = "r")
+    brew(template, output = synNam1, envir = temEnv)
+    close(con = template)
+  }
+  synNam2 <- "syntax-part.lgs"
+  template <- file(description = "template-syntax-step2.brew", open = "r")
+  brew(template, output = synNam2, envir = temEnv)
+  close(con = template)
+  
+  file.append(file1 = synNam1, file2 = synNam2)
+}
+```
+
+Clear variables.
+```{r}
+rm( list = ls() )
+```
+

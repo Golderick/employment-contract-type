@@ -1,0 +1,125 @@
+//LG5.1//
+version = 5.1
+infile 'simDat-step0.dat'
+
+// template for Masyn (2017) step2, with X as a single covariate
+
+model
+title 'y1: no | <%=rep%>' ;
+options
+   maxthreads=8;
+   algorithm 
+      tolerance=1e-008 emtolerance=0.01 emiterations=500 nriterations=10000 ;
+   startvalues
+      seed=123 sets=3200 tolerance=1e-005 iterations=100 ;
+   bayes
+      categorical=1 variances=1 latent=1 poisson=1 ;
+   montecarlo
+      seed=123 sets=0 replicates=500 tolerance=1e-008 ;
+   quadrature nodes=10 ;
+   missing excludeall ;
+   step3 modal ml ;
+   output
+      parameters=first betaopts=wl standarderrors=robust profile=posterior
+      probmeans=posterior estimatedvalues=model reorderclasses
+      write='output-step2-<%=simNam%>.csv' ;
+variables
+   dependent y1 nominal 3 ;
+   independent i nominal, z nominal ;
+   latent
+      cluster nominal posterior = ( Cluster#1 Cluster#2 Cluster#3 ) ;
+equations
+   cluster <- 1 + i + z ;
+   y1      <- 1 + cluster ;
+end model
+
+
+model
+title 'y1: non-uniform | <%=rep%>' ;
+options
+   maxthreads=8;
+   algorithm 
+      tolerance=1e-008 emtolerance=0.01 emiterations=500 nriterations=10000 ;
+   startvalues
+      seed=123 sets=3200 tolerance=1e-005 iterations=100 ;
+   bayes
+      categorical=1 variances=1 latent=1 poisson=1 ;
+   montecarlo
+      seed=123 sets=0 replicates=500 tolerance=1e-008 ;
+   quadrature nodes=10 ;
+   missing excludeall ;
+   step3 modal ml ;
+   output
+      parameters=first betaopts=wl standarderrors=robust profile=posterior
+      probmeans=posterior estimatedvalues=model reorderclasses
+      append='output-step2-<%=simNam%>.csv' ;
+variables
+   dependent y1 nominal 3 ;
+   independent i nominal, z nominal ;
+   latent
+      cluster nominal posterior = ( Cluster#1 Cluster#2 Cluster#3 ) ;
+equations
+   cluster <- 1 + i + z ;
+   y1      <- 1 + cluster + z|cluster ;
+end model
+
+
+model
+title 'y2: no | <%=rep%>' ;
+options
+   maxthreads=8;
+   algorithm 
+      tolerance=1e-008 emtolerance=0.01 emiterations=500 nriterations=10000 ;
+   startvalues
+      seed=123 sets=3200 tolerance=1e-005 iterations=100 ;
+   bayes
+      categorical=1 variances=1 latent=1 poisson=1 ;
+   montecarlo
+      seed=123 sets=0 replicates=500 tolerance=1e-008 ;
+   quadrature nodes=10 ;
+   missing excludeall ;
+   step3 modal ml ;
+   output
+      parameters=first betaopts=wl standarderrors=robust profile=posterior
+      probmeans=posterior estimatedvalues=model reorderclasses
+      append='output-step2-<%=simNam%>.csv' ;
+variables
+   dependent y2 nominal 3 ;
+   independent i nominal, z nominal ;
+   latent
+      cluster nominal posterior = ( Cluster#1 Cluster#2 Cluster#3 ) ;
+equations
+   cluster <- 1 + i + z ;
+   y2      <- 1 + cluster ;
+end model
+
+
+model
+title 'y2: non-uniform | <%=rep%>' ;
+options
+   maxthreads=8;
+   algorithm 
+      tolerance=1e-008 emtolerance=0.01 emiterations=500 nriterations=10000 ;
+   startvalues
+      seed=123 sets=3200 tolerance=1e-005 iterations=100 ;
+   bayes
+      categorical=1 variances=1 latent=1 poisson=1 ;
+   montecarlo
+      seed=123 sets=0 replicates=500 tolerance=1e-008 ;
+   quadrature nodes=10 ;
+   missing excludeall ;
+   step3 modal ml ;
+   output
+      parameters=first betaopts=wl standarderrors=robust profile=posterior
+      probmeans=posterior estimatedvalues=model reorderclasses
+      append='output-step2-<%=simNam%>.csv' ;
+variables
+   dependent y2 nominal 3 ;
+   independent i nominal, z nominal ;
+   latent
+      cluster nominal posterior = ( Cluster#1 Cluster#2 Cluster#3 ) ;
+equations
+   cluster <- 1 + i + z ;
+   y2      <- 1 + cluster + z|cluster ;
+end model
+

@@ -1,0 +1,337 @@
+---
+title: "Simulation covariates"
+subtitle: "Parameters and stepwise selection"
+author: "Frederick Restrepo Estrada"
+date: "2022"
+output: html_document
+---
+
+Load packages.
+```{r}
+library(reshape)
+library(nnet)
+```
+
+Create dataset with results from all methods.
+```{r}
+#######################
+## fetch LRT results ##
+#######################
+
+# read data (in wide format as a frequency table)
+dLRT <- read.csv(file = "final-LRT-s8-c2.csv", header = TRUE, sep = ",")
+
+# convert to long format (frequency tale) 
+dLRT <- melt( data = dLRT, id.vars = c("casWei", "covEff", "effSiz") )
+
+# keep only entries for which a "final" model was found
+dLRT <- dLRT[dLRT$value != 0, ]
+
+# initialize case format dataframe
+cLRT <- setNames( object = data.frame( matrix(data = NA, nrow = 0, ncol = ncol(dLRT) ) ), nm = names(dLRT) ) 
+# fill in case format dataframe
+for ( i in 1:nrow(dLRT) ) {
+  # for ( i in 1:5 ) {
+  v <- as.numeric( dLRT[i, "value"] )
+  for ( j in 1:v ) {
+    cLRT <- rbind(cLRT,  dLRT[i, ])
+  }
+}
+
+# add column
+cLRT$result <- factor( ifelse(test = cLRT$variable == cLRT$covEf,
+                              yes = "all", no = ifelse(test = cLRT$variable != "e00",
+                                                       yes = "some", no = "none") ) )
+
+# remove unnecessary column
+cLRT$value <- NULL
+
+# remove "no effect" category
+cLRT <- cLRT[cLRT$effSiz != "N", ]
+
+# set variable class
+cLRT$casWei <- as.factor(cLRT$casWei)
+cLRT$covEff <- as.factor(cLRT$covEff)
+cLRT$effSiz <- as.factor(cLRT$effSiz)
+cLRT$variable <- as.factor(cLRT$variable)
+
+# reorder dataframe
+cLRT <- cLRT[order(cLRT$casWei, cLRT$covEff, cLRT$effSiz, decreasing = c(FALSE, FALSE, TRUE) ), ]
+
+#######################
+## fetch BIC results ##
+#######################
+
+dBIC <- read.csv(file = "final-BIC-s8-c2.csv", header = TRUE, sep = ",")
+dBIC <- melt(data = dBIC, id.vars = c("casWei", "covEff", "effSiz"))
+dBIC <- dBIC[dBIC$value != 0, ]
+
+cBIC <- setNames( object = data.frame( matrix(data = NA, nrow = 0, ncol = ncol(dBIC) ) ), nm = names(dBIC) )
+for ( i in 1:nrow(dBIC) ) {
+  v <- as.numeric( dBIC[i, "value"] )
+  for ( j in 1:v ) {
+    cBIC <- rbind(cBIC,  dBIC[i, ])
+  }
+}
+row.names(cBIC) <- NULL
+cBIC$result <- factor( ifelse(test = cBIC$covEf == cBIC$variable,
+                              yes = "all", no = ifelse(test = cBIC$variable != "e00",
+                                                       yes = "some", no = "none") ) )
+cBIC <- cBIC[cBIC$effSiz != "N", ]
+cBIC$value <- NULL
+
+cBIC$casWei <- as.factor(cBIC$casWei)
+cBIC$covEff <- as.factor(cBIC$covEff)
+cBIC$effSiz <- as.factor(cBIC$effSiz)
+cBIC$variable <- as.factor(cBIC$variable)
+
+cBIC <- cBIC[order(cBIC$casWei, cBIC$covEff, cBIC$effSiz, decreasing = c(FALSE, FALSE, TRUE) ), ]
+
+#######################
+## fetch AIC results ##
+#######################
+
+dAIC <- read.csv(file = "final-AIC-s8-c2.csv", header = TRUE, sep = ",")
+dAIC <- melt( data = dAIC, id.vars = c("casWei", "covEff", "effSiz") )
+dAIC <- dAIC[dAIC$value != 0, ]
+
+cAIC <- setNames( object = data.frame( matrix(data = NA, nrow = 0, ncol = ncol(dAIC) ) ), nm = names(dAIC) )
+for ( i in 1:nrow(dAIC) ) {
+  v <- as.numeric( dAIC[i, "value"] )
+  for ( j in 1:v ) {
+    cAIC <- rbind(cAIC,  dAIC[i, ])
+  }
+}
+row.names(cAIC) <- NULL
+cAIC$result <- factor( ifelse(test = cAIC$covEf == cAIC$variable,
+                              yes = "all", no = ifelse(test = cAIC$variable != "e00",
+                                                       yes = "some", no = "none") ) )
+cAIC <- cAIC[cAIC$effSiz != "N", ]
+cAIC$value <- NULL
+
+cAIC$casWei <- as.factor(cAIC$casWei)
+cAIC$covEff <- as.factor(cAIC$covEff)
+cAIC$effSiz <- as.factor(cAIC$effSiz)
+cAIC$variable <- as.factor(cAIC$variable)
+
+cAIC <- cAIC[order(cAIC$casWei, cAIC$covEff, cAIC$effSiz, decreasing = c(FALSE, FALSE, TRUE) ), ]
+
+######################
+## combine datasets ##
+######################
+
+# add methods
+cLRT$method <- "LRT"
+cBIC$method <- "BIC"
+cAIC$method <- "AIC"
+
+# combine datsets
+dat <- rbind(cLRT, cBIC, cAIC)
+dat$method <- as.factor(dat$method)
+dat$effSiz <- factor( x = dat$effSiz, levels = c("S", "M", "L") )
+dat$method <- factor( x = dat$method, levels = c("LRT", "AIC", "BIC") )
+dat$result <- factor( x = dat$result, levels = c("none", "some", "all") )
+dat <- dat[order(dat$casWei, dat$covEff, dat$effSiz, dat$method, decreasing = c(FALSE, FALSE, TRUE, TRUE) ), ]
+row.names(dat) <- NULL
+
+# z value = estimate / std. error
+```
+
+
+#### Parameters
+
+Coefficients, standard errors and p-values.
+```{r}
+MLR1b <- multinom(formula = result ~ casWei + covEff + effSiz + method,
+                  data = dat, trace = FALSE)
+
+b <- summary(MLR1b)
+
+###################
+## coefficients  ##
+###################
+
+print("ceof MLR")
+b$coefficients
+
+#########
+## SEs ##
+#########
+
+print("SEs MLR")
+b$standard.errors
+
+###########
+## pvals ##
+###########
+
+zValMLR <- b$coefficients / b$standard.errors
+
+print("pvals MLR")
+2 * pnorm(q = abs(x = zValMLR), mean = 0, sd = 1, lower.tail = FALSE)
+```
+
+
+#### Stepwise selection
+
+Stepwise selection can be performed with the function `step`. The function allows for the selection criteria to be changed by changing `k`. 
+
+Construct model.
+```{r}
+MLR1b <- multinom(formula = result ~ casWei + covEff + effSiz + method,
+                  data = dat, trace = FALSE)
+```
+
+Test.
+```{r}
+# with AIC
+step( object = MLR1b, direction = "backward", k = 2)
+
+# with BIC
+step( object = MLR1b, direction = "backward", k = log( nrow(dat) ) )
+
+# AIC full model
+MLR1b$edf * 2 + MLR1b$deviance
+```
+
+The function `step` seems to ignore `k` when given a `multinom` object. `step` seems to use AIC only. Therefore, stepwise selection with BIC is performed manually.
+
+BIC for `multinom` can be calculated with:
+- `MLR1b$edf * log( nrow(dat) ) + MLR1b$deviance`
+
+AIC for `multinom` can be calculated with:
+- `MLR1b$edf * 2 + MLR1b$deviance`
+
+Note: residual deviance = -2 * LL
+
+Backwards selection using AIC.
+```{r}
+##################
+## BACKWARD AIC ##
+##################
+
+MLR1b <- multinom(formula = result ~ casWei + covEff + effSiz + method,
+                  data = dat, trace = FALSE)
+
+step(object = MLR1b, direction = "backward",
+     scope = (~ casWei + covEff + effSiz + method), k = 2 )
+```
+
+Backward selection using BIC.
+```{r}
+##################
+## BACKWARD BIC ##
+##################
+
+# none
+tmp <- multinom(formula = result ~ casWei + covEff + effSiz + method,
+                data = dat, trace = FALSE)
+tmp$edf * log(nrow(dat)) + tmp$deviance
+
+# - casWei
+tmp <- multinom(formula = result ~ covEff + effSiz + method,
+                data = dat, trace = FALSE)
+tmp$edf * log(nrow(dat)) + tmp$deviance
+
+# - covEff
+tmp <- multinom(formula = result ~ casWei + effSiz + method,
+                data = dat, trace = FALSE)
+tmp$edf * log(nrow(dat)) + tmp$deviance
+
+# - effSiz
+tmp <- multinom(formula = result ~ casWei + covEff + method,
+                data = dat, trace = FALSE)
+tmp$edf * log(nrow(dat)) + tmp$deviance
+
+# - method
+tmp <- multinom(formula = result ~ casWei + covEff + effSiz,
+                data = dat, trace = FALSE)
+tmp$edf * log(nrow(dat)) + tmp$deviance
+```
+
+With 'backwards selection' using BIC, the final model keeps all covariates.
+
+Forward selection using AIC.
+```{r}
+#################
+## FORWARD AIC ##
+#################
+
+MLR0b <- multinom(formula = result ~ 1,
+                  data = dat, trace = FALSE)
+
+step(object = MLR0b, direction = "forward",
+     scope = (~ casWei + covEff + effSiz + method), k = 2 )
+```
+
+Forward selection using BIC.
+```{r}
+#################
+## FORWARD BIC ##
+#################
+
+# step1; none
+tmp <- multinom(formula = result ~ 1,
+                data = dat, trace = FALSE)
+tmp$edf * log(nrow(dat)) + tmp$deviance
+
+tmp <- multinom(formula = result ~ casWei,
+                data = dat, trace = FALSE)
+tmp$edf * log(nrow(dat)) + tmp$deviance
+
+tmp <- multinom(formula = result ~ covEff,
+                data = dat, trace = FALSE)
+tmp$edf * log(nrow(dat)) + tmp$deviance
+
+tmp <- multinom(formula = result ~ effSiz,
+                data = dat, trace = FALSE)
+tmp$edf * log(nrow(dat)) + tmp$deviance
+
+tmp <- multinom(formula = result ~ method,
+                data = dat, trace = FALSE)
+tmp$edf * log(nrow(dat)) + tmp$deviance
+
+# step2; + covEff
+tmp <- multinom(formula = result ~ covEff,
+                data = dat, trace = FALSE)
+tmp$edf * log(nrow(dat)) + tmp$deviance
+
+tmp <- multinom(formula = result ~ covEff + casWei,
+                data = dat, trace = FALSE)
+tmp$edf * log(nrow(dat)) + tmp$deviance
+
+tmp <- multinom(formula = result ~ covEff + effSiz,
+                data = dat, trace = FALSE)
+tmp$edf * log(nrow(dat)) + tmp$deviance
+
+tmp <- multinom(formula = result ~ covEff + method,
+                data = dat, trace = FALSE)
+tmp$edf * log(nrow(dat)) + tmp$deviance
+
+# step3; + effSiz
+tmp <- multinom(formula = result ~ covEff + effSiz,
+                data = dat, trace = FALSE)
+tmp$edf * log(nrow(dat)) + tmp$deviance
+
+tmp <- multinom(formula = result ~ covEff + effSiz + casWei,
+                data = dat, trace = FALSE)
+tmp$edf * log(nrow(dat)) + tmp$deviance
+
+tmp <- multinom(formula = result ~ covEff + effSiz + method,
+                data = dat, trace = FALSE)
+tmp$edf * log(nrow(dat)) + tmp$deviance
+
+# step4; + method
+tmp <- multinom(formula = result ~ covEff + effSiz + method,
+                data = dat, trace = FALSE)
+tmp$edf * log(nrow(dat)) + tmp$deviance
+
+tmp <- multinom(formula = result ~ covEff + effSiz + method + casWei,
+                data = dat, trace = FALSE)
+tmp$edf * log(nrow(dat)) + tmp$deviance
+
+# + casWei
+```
+
+With 'forward selection' using BIC, the final model keeps all covariates
+

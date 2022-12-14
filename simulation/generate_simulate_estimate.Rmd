@@ -1,0 +1,132 @@
+---
+title: "Simulation study"
+subtitle: "Generate LG syntax, simulate data, and estimate models"
+author: "Frederick Restrepo Estrada"
+date: "2022"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+
+Load library.
+```{r}
+library(brew)
+```
+
+Define working directory.
+```{r}
+pathR  <- "Y:/Frederick/latentGOLD/simulation3" # path to the folder that contains the example dataset and brew templates
+```
+
+Define miscellaneous.
+```{r}
+covEff <- rep( rep( rep( c("e10", "e20", "e11", "e21", "e22"), each  = 10 ), each  = 2 ), each  = 3 ) # covariate effect
+effSiz <- rep( rep( rep( c("S", "M", "L"),                     each  = 10 ), each  = 2 ), times = 5 ) # effect size
+casWei <- rep( rep( rep( c(2000, 20000),                       each  = 10 ), times = 3 ), times = 5 ) # case weight
+repNum <- rep( rep( rep( x = 1:10,                             times = 2  ), times = 3 ), times = 5 ) # replicate number
+
+claSep <- "s8" # class separation
+numCat <- "c2" # number of categories
+
+covEff <- c( rep( "e00",          times = 20 ), covEff)
+effSiz <- c( rep( "N",            times = 20 ), effSiz)
+casWei <- c( rep( c(2000, 20000), each  = 10 ), casWei)
+repNum <- c( rep( 1:10,           times = 2  ), repNum)
+```
+
+Run all models.
+```{r}
+setwd(pathR)
+
+for ( i in 1:length(casWei) ) {
+  
+  ##############
+  ## simulate ##
+  ##############
+  
+  temEnv <- new.env()
+  
+         if (covEff[i] == "e00") { y1Equ <- "";            y2Equ <- ""
+  } else if (covEff[i] == "e10") { y1Equ <- "+ z";         y2Equ <- ""
+  } else if (covEff[i] == "e20") { y1Equ <- "+ z|cluster"; y2Equ <- ""
+  } else if (covEff[i] == "e11") { y1Equ <- "+ z";         y2Equ <- "+ z"
+  } else if (covEff[i] == "e21") { y1Equ <- "+ z|cluster"; y2Equ <- "+ z"
+  } else if (covEff[i] == "e22") { y1Equ <- "+ z|cluster"; y2Equ <- "+ z|cluster"
+  }
+
+         if (effSiz[i] == "S") { parVal <- 1.25
+  } else if (effSiz[i] == "M") { parVal <- 2
+  } else if (effSiz[i] == "L") { parVal <- 5
+  }
+
+         if (y1Equ == ""           ) { y1Par <- ""
+  } else if (y1Equ == "+ z"        ) { y1Par <- paste( log(parVal), -log(parVal) )
+  } else if (y1Equ == "+ z|cluster") { y1Par <- paste( log(parVal),  log(parVal), 0, 0, -log(parVal), -log(parVal) )
+  }
+
+         if (y2Equ == ""           ) { y2Par <- ""
+  } else if (y2Equ == "+ z"        ) { y2Par <- paste( log(parVal), -log(parVal) )
+  } else if (y2Equ == "+ z|cluster") { y2Par <- paste( log(parVal),  log(parVal), 0, 0, -log(parVal), -log(parVal) )
+  }
+  
+  assign( x = "y1Equ", value = y1Equ, envir = temEnv )
+  assign( x = "y2Equ", value = y2Equ, envir = temEnv )
+  assign( x = "y1Par", value = y1Par, envir = temEnv )
+  assign( x = "y2Par", value = y2Par, envir = temEnv )
+
+  assign( x = "casWei", value = casWei[i], envir = temEnv)
+  assign( x = "staSee", value = as.numeric( gsub(pattern = "e", replacement = "", x = covEff[i]) ) + casWei[i] + repNum[i], envir = temEnv )
+  assign( x = "simNam", value = paste0(claSep, "-", numCat, "-", covEff[i], "-", effSiz[i], "-w", casWei[i], "-r", repNum[i]), envir = temEnv )
+  
+  # create syntax file and pass to LG
+  synNam1 <- "simSyn.lgs"
+  template <- file( description = "simTem.brew", open = 'r' )
+  brew( file = template, output = synNam1, envir = temEnv ) # write to file
+  close( template )
+  shell( cmd = paste( '"C:/Program Files/LatentGOLDnet5.1/lg51.exe"', paste(pathR, synNam1, sep = "/"), "/b") )
+  
+  print( paste(i, "simulate done") )
+  
+  ###########
+  ## step0 ##
+  ###########
+
+  synNam2 <- "st0Syn.lgs"
+  template <- file( description = paste( pathR, "st0Tem.brew", sep = "/" ), open = "r" )
+  brew( file = template, output = synNam2, envir = temEnv )
+  close( con = template )
+  shell( cmd = paste( '"C:/Program Files/LatentGOLDnet5.1/lg51.exe"', paste(pathR, synNam2, sep = "/"), "/b") )
+
+  print( paste(i, "step0 done") )
+  
+  ###########
+  ## step2 ##
+  ###########
+
+  assign( x = "rep", value = paste0("r", repNum[i]), envir = temEnv )
+
+  synNam3 <- "st2Syn.lgs"
+  template <- file( description = paste( pathR, "st2Tem.brew", sep = "/" ), open = "r" )
+  brew( file = template, output = synNam3, envir = temEnv )
+  close( con = template )
+  shell( cmd = paste( '"C:/Program Files/LatentGOLDnet5.1/lg51.exe"', paste(pathR, synNam3, sep = "/"), "/b" ) )
+
+  print( paste(i, "step2 done") )
+  
+  ###########
+  ## other ##
+  ###########
+
+  synNam4 <- "estSyn.lgs"
+  template <- file( description = "estTem.brew", open = 'r' )
+  brew( file = template, output = synNam4, envir = temEnv ) # write to file
+  close( template )
+  shell( cmd = paste('"C:/Program Files/LatentGOLDnet5.1/lg51.exe"', paste(pathR, synNam4, sep = "/"), "/b") )
+
+  print( paste(i, "estimate done") )
+}
+```
+

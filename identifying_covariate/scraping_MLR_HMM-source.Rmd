@@ -1,0 +1,88 @@
+---
+title: "Scraping data from Excel"
+subtile: "HMM-source inconsitencies"
+author: "Frederick Restrepo Estrada"
+date: "2022"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+
+The data is scraped from three Microsoft Excel files that were created for the study of Bakker et al. (2021). The Excel files contain the results of mutinomial logistic regression analyses of the effects of several covariates on the inconsistencies between the contract type as estimated by a hidden Markov model (HMM) and the contract type as recorded by a source (ER of LFS). The Excel files are not publicly available.
+
+
+Load libraries
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
+Function for extracting the data
+```{r}
+# Note that as the first columns is not directly connected to some of the tables, we have to add it manually.
+             
+extract_tables <- function(doc_nam, cell_frst, cell_othr, mis_sym = "-", prnt = TRUE, tab_nam) {
+  incon_list <- list()
+  for ( i in 1:length(doc_nam) ) {
+    sheet_names <- excel_sheets(path = doc_nam[i])
+    for ( j in 1:length(sheet_names) ) {
+      for ( k in 1:length(cell_othr) ) {
+        df_frst <- read_excel(path = doc_nam[i], sheet = sheet_names[j],
+                              range = cell_frst[k], col_names = FALSE)
+        df_othr <- read_excel(path = doc_nam[i], sheet = sheet_names[j],
+                              range = cell_othr[k], na = mis_sym)
+        df_cmpt <- cbind(df_frst, df_othr)
+        incon_list <- append( x = incon_list, values = list(df_cmpt) )
+        if (prnt == TRUE) {
+          print( paste( length(incon_list), "of the", length(tab_nam), "table(s) made" ) )
+        }
+      }
+    }
+  }
+  names(incon_list) <- tab_nam
+  return(incon_list)
+}
+```
+
+
+### Extract data
+
+Variables used for extracting the data
+```{r}
+document_names <- c("covariatenanalyse_15tm24_incl_refcat.xlsx",
+                    "covariatenanalyse_25tm54_incl_refcat.xlsx",
+                    "covariatenanalyse_55tm74_incl_refcat.xlsx")
+
+cells_first_columns <- c("A4:A50", "A4:A50", "A55:A97", "A55:A97")
+cells_other_columns <- c("B3:E50", "G3:J50", "B54:E97", "G54:J97")
+
+table_names <- c("HMMp_ERf", "HMMp_ERo", "HMMp_LFSf", "HMMp_LFSo",
+                 "HMMf_ERp", "HMMf_ERo", "HMMf_LFSp", "HMMf_LFSo",
+                 "HMMo_ERp", "HMMo_ERf", "HMMo_LFSp", "HMMo_LFSf")
+table_names <- paste0( rep( table_names, 3 ), rep( c("_15t24", "_25t54", "_55t74"), each = 12 ) )
+```
+
+Extract data from files
+```{r}
+HMM_incon <- extract_tables(doc_nam = document_names,
+                            cell_frst = cells_first_columns,
+                            cell_othr = cells_other_columns,
+                            tab_nam = table_names)
+```
+
+Remove rows for missing covariates
+```{r}
+for ( i in 1:length(HMM_incon) ) {
+  HMM_incon[[i]] <- HMM_incon[[i]][ !is.na( HMM_incon[[i]][1] ), ] # keep only rows with names in the first column
+}; rm(i)
+```
+
+Save and load data
+```{r}
+saveRDS(object = HMM_incon, file = "HMM_incon.Rds")
+
+HMM_incon <- readRDS(file = "HMM_incon.Rds")
+```

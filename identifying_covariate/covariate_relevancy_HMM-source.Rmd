@@ -1,0 +1,309 @@
+---
+title: "Covariate relevancy"
+subtile: "HMM-source inconsitencies"
+author: "Frederick Restrepo Estrada"
+date: "2022"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+
+The file `HMM_incon.Rds` was created with `scraping_MLR_HMM-source.Rmd` and files of Bakker et al. (2021). It contains the scraped results of mutinomial logistic regression analyses of the effects of several covariates on the inconsistencies between the contract type as estimated by a hidden Markov model (HMM) and the contract type as recorded by a source (ER of LFS). The `Rds` file is not publicly available.
+
+
+### Loading data and defining variables
+
+Load data
+```{r}
+HMM_incon <- readRDS(file = "HMM_incon.Rds")
+```
+
+Indices for subsets
+```{r}
+# age groups
+ind15 <- seq(from = 1, to = length(HMM_incon)/3, by = 1) # index 15-24
+ind25 <- seq(from = length(HMM_incon)/3+1, to = length(HMM_incon)/3*2, by = 1) # index 25-54
+ind55 <- seq(from = length(HMM_incon)/3*2+1, to = length(HMM_incon), by = 1) # index 55-74
+
+# age group 15-24 per source
+ind15er <- sort( c(
+  seq(from = 1, to = length(HMM_incon)/3, by = 4),
+  seq(from = 2, to = length(HMM_incon)/3, by = 4) ) ) # index ER 15-24
+ind15lfs <- sort( c(
+  seq(from = 3, to = length(HMM_incon)/3, by = 4),
+  seq(from = 4, to = length(HMM_incon)/3, by = 4) ) ) # index LFS 15-24
+
+# age group 24-55 per source
+ind25er <- sort( c(
+  seq(from = length(HMM_incon)/3+1, to = length(HMM_incon)/3*2, by = 4),
+  seq(from = length(HMM_incon)/3+2, to = length(HMM_incon)/3*2, by = 4) ) ) # index ER 24-55
+ind25lfs <- sort( c(
+  seq(from = length(HMM_incon)/3+3, to = length(HMM_incon)/3*2, by = 4),
+  seq(from = length(HMM_incon)/3+4, to = length(HMM_incon)/3*2, by = 4) ) ) # index LFS 25-54
+
+# age group 55-74 per source
+ind55er <- sort( c(
+  seq(from = length(HMM_incon)/3*2+1, to = length(HMM_incon), by = 4),
+  seq(from = length(HMM_incon)/3*2+2, to = length(HMM_incon), by = 4) ) ) # index ER 55-74
+ind55lfs <- sort( c(
+  seq(from = length(HMM_incon)/3*2+3, to = length(HMM_incon), by = 4),
+  seq(from = length(HMM_incon)/3*2+4, to = length(HMM_incon), by = 4) ) ) # index LFS 55-74
+```
+
+All covariate names
+```{r}
+# each covariate has multiple categories
+# "intercept" is included to prevent NAs later on
+covariate_name <- c(
+  "(Intercept)","periode", "LftKlasse", "land", "geslacht", "opleiding", "SBIgroep", "Contracturen2", "BaanduurKlasse2", "grootteklasse",
+  "ZelfdebaanPolis", "softwarecluster", # exclusive to ER
+  "ZelfdewerkgevEBB") # exclusive to LFS 
+```
+
+
+### Functions for finding non-relevant covariates
+
+Function for adding columns `covariate` and `relevant` to the data frames.
+```{r}
+add_columns <- function(input_list, input_names, input_alpha, input_or) {
+  
+  output_list <- input_list # make copy
+  
+  for (i in 1:length(output_list)) {
+    
+    output_list[[i]] <- na.omit( output_list[[i]] ) # remove incomplete rows (reference categories)
+    
+    output_list[[i]]["covariate"] <- NA # covariate name (which the category belongs to)
+    output_list[[i]]["relevant"] <- NA # catagory relevant (1=yes, 0=no) 
+    
+    for ( j in 1:nrow( output_list[[i]] ) ) {
+      for ( k in 1:length(input_names)) {
+        if ( grepl( pattern = input_names[k], x = output_list[[i]][j, "...1"]) ) {
+          output_list[[i]][j,"covariate"] <- input_names[k]
+        }
+      }
+    }
+    
+    output_list[[i]]["relevant"] <- ifelse(
+      test = 
+        ( output_list[[i]][,"z"] < qnorm(input_alpha/2) | qnorm(1-input_alpha/2) < output_list[[i]][,"z"] ) & 
+        ( output_list[[i]][,"Exp.coef"] < input_or[1] | input_or[2] < output_list[[i]][,"Exp.coef"] ),
+      yes = 1, no = 0 )
+  }
+  return(output_list)
+}
+```
+
+The columns `covariate` indicates to which covariate the category belongs. ("intercept" is added to prevent NAs.) The column `relevant` indicates whether the category is deemed relevant or not according to the threshold values used.
+
+Function for creating a list for the number of relevant categories per covariate.
+```{r}
+create_list1 <- function(input_list) {
+  
+  number_relevant_category_list <- list()
+  
+  for ( i in 1:length(input_list) ) {
+    
+    categories_per_covariate <- table( input_list[[i]][,"covariate"] ) # number of categories (excluding reference category) per covariate (or intercept)
+    categories_per_covariate <- data.frame(categories_per_covariate)
+    names(categories_per_covariate) <- c("covariate", "number_of_categories")
+    
+    number_of_relevent_categories <- aggregate(relevant~covariate, input_list[[i]], sum)# number of non-relevant categories per covariate (or intercept)
+    # Note: "aggregate" may set "covariate" as a factor...
+    
+    tmp <- merge(x = categories_per_covariate, y = number_of_relevent_categories, by = "covariate") # merged dataframe
+    tmp["covariate_relevant"] <- ifelse( test = tmp[,"relevant"] != 0, yes = 1, no = 0) # covariate relevant (1=yes, 2=no)
+    
+    number_relevant_category_list[[i]] <- tmp # relevant categories per table
+    names(number_relevant_category_list)[i] <- names(input_list)[i]
+  }
+  return(number_relevant_category_list)
+}
+```
+
+Function for creating a list with non-relevant covariates per HMM-source inconsistency.
+```{r}
+create_list2 <- function(input_list) {
+  
+  output_list <- list()
+
+  for ( i in 1:length(input_list) ) {
+  
+    tmp <- input_list[[i]]
+    
+    covariates <- as.character( tmp[ tmp[,"covariate_relevant"] == 0, "covariate" ] )
+    # Note: `as.character` is used to remove factor levels...
+    
+    if ( length(covariates) == 0 ) { covariates <- "None" }
+    
+    output_list[[i]] <- covariates
+  }
+  
+  names(output_list) <- names(input_list)
+  
+  return(output_list)
+
+}
+```
+
+
+### Covariate relevancy
+
+
+**Age group 15-24; non-relevant covariates**
+
+Both sources (ER + LFS)
+```{r}
+ag15 <- HMM_incon[ind15] # 15-24, ER+LFS
+
+t1 <- add_columns(input_list = ag15,
+                  input_names = covariate_name,
+                  input_alpha = 0.05,
+                  input_or = c(0.8, 1.25))
+t2 <- create_list1(input_list = t1)
+t3 <- create_list2(input_list = t2)
+
+sort( table(unlist(t3)) / length(t3), decreasing = TRUE ) # non-relevance fraction
+```
+
+ER only
+```{r}
+ag15er <- HMM_incon[ind15er] # 15-24, ER
+
+t1 <- add_columns(input_list = ag15er,
+                  input_names = covariate_name,
+                  input_alpha = 0.05,
+                  input_or = c(0.8, 1.25))
+t2 <- create_list1(input_list = t1)
+t3 <- create_list2(input_list = t2)
+
+sort( table(unlist(t3)) / length(t3), decreasing = TRUE ) # non-relevance fraction
+```
+
+LFS only
+```{r}
+ag15lfs <- HMM_incon[ind15lfs] # 15-24, LFS
+
+t1 <- add_columns(input_list = ag15lfs,
+                  input_names = covariate_name,
+                  input_alpha = 0.05,
+                  input_or = c(0.8, 1.25))
+t2 <- create_list1(input_list = t1)
+t3 <- create_list2(input_list = t2)
+
+sort( table(unlist(t3)) / length(t3), decreasing = TRUE ) # non-relevance fraction
+```
+
+
+**Age group 25-54; non-relevant covariates**
+
+Both sources (ER + LFS)
+```{r}
+ag25 <- HMM_incon[ind25] # 25-54, ER+LFS
+
+t1 <- add_columns(input_list = ag25,
+                  input_names = covariate_name,
+                  input_alpha = 0.05,
+                  input_or = c(0.8, 1.25))
+t2 <- create_list1(input_list = t1)
+t3 <- create_list2(input_list = t2)
+
+sort( table(unlist(t3)) / length(t3), decreasing = TRUE ) # non-relevance fraction
+```
+
+ER only
+```{r}
+ag25er <- HMM_incon[ind25er] # 25-54, ER
+
+t1 <- add_columns(input_list = ag25er,
+                  input_names = covariate_name,
+                  input_alpha = 0.05,
+                  input_or = c(0.8, 1.25))
+
+t2 <- create_list1(input_list = t1)
+
+t3 <- create_list2(input_list = t2)
+
+sort( table(unlist(t3)) / length(t3), decreasing = TRUE ) # non-relevance fraction
+```
+
+LFS only
+```{r}
+ag25lfs <- HMM_incon[ind25lfs] # 25-54, LFS
+
+t1 <- add_columns(input_list = ag25lfs,
+                  input_names = covariate_name,
+                  input_alpha = 0.05,
+                  input_or = c(0.8, 1.25))
+t2 <- create_list1(input_list = t1)
+t3 <- create_list2(input_list = t2)
+
+sort( table(unlist(t3)) / length(t3), decreasing = TRUE ) # non-relevance fraction
+```
+
+
+**Age group 55-74; non-relevant covariates**
+
+Both sources (ER + LFS)
+```{r}
+ag55 <- HMM_incon[ind55] # 55-74, ER+LFS
+
+t1 <- add_columns(input_list = ag55,
+                  input_names = covariate_name,
+                  input_alpha = 0.05,
+                  input_or = c(0.8, 1.25))
+t2 <- create_list1(input_list = t1)
+t3 <- create_list2(input_list = t2)
+
+sort( table(unlist(t3)) / length(t3), decreasing = TRUE ) # non-relevance fraction
+```
+
+ER only
+```{r}
+ag55er <- HMM_incon[ind55er] # 55-74, ER
+
+t1 <- add_columns(input_list = ag55er,
+                  input_names = covariate_name,
+                  input_alpha = 0.05,
+                  input_or = c(0.8, 1.25))
+
+t2 <- create_list1(input_list = t1)
+
+t3 <- create_list2(input_list = t2)
+
+sort( table(unlist(t3)) / length(t3), decreasing = TRUE ) # non-relevance fraction
+```
+
+LFS only
+```{r}
+ag55lfs <- HMM_incon[ind55lfs] # 55-74, LFS
+
+t1 <- add_columns(input_list = ag55lfs,
+                  input_names = covariate_name,
+                  input_alpha = 0.05,
+                  input_or = c(0.8, 1.25))
+t2 <- create_list1(input_list = t1)
+t3 <- create_list2(input_list = t2)
+
+sort( table(unlist(t3)) / length(t3), decreasing = TRUE ) # non-relevance fraction
+```
+
+**All age groups; non-relevant covariates**
+
+Both sources (ER + LFS)
+```{r}
+ag_all_both <- HMM_incon # 55-74, LFS
+
+t1 <- add_columns(input_list = ag_all_both,
+                  input_names = covariate_name,
+                  input_alpha = 0.05,
+                  input_or = c(0.8, 1.25))
+t2 <- create_list1(input_list = t1)
+t3 <- create_list2(input_list = t2)
+
+sort( table(unlist(t3)) / length(t3), decreasing = TRUE ) # non-relevance fraction
+```
+

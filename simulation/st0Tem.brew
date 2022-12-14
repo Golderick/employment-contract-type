@@ -1,0 +1,37 @@
+//LG5.1//
+version = 5.1
+infile 'simDat.dat'
+
+// template for Masyn (2017) step0, with X as a single covariate
+
+model
+title '<%=simNam%>.dat' ;
+options
+   maxthreads=8;
+   algorithm
+      tolerance=1e-008 emtolerance=0.01 emiterations=500 nriterations=10000 ;
+   startvalues
+      seed=123 sets=3200 tolerance=1e-005 iterations=250 ;
+   bayes
+      categorical=1 variances=1 latent=1 poisson=1 ;
+   montecarlo
+      seed=123 sets=0 replicates=500 tolerance=1e-008 ;
+   quadrature nodes=10 ;
+   missing excludeall ;
+   output      
+      parameters=first betaopts=wl standarderrors profile probmeans=posterior
+      loadings bivariateresiduals estimatedvalues=model reorderclasses
+      // write='output-step0-<%=simNam%>.csv'
+      outfile 'simDat-step0.dat'
+	  classification keep z ;
+variables
+   dependent y1 nominal 3, y2 nominal 3 ;
+   independent i nominal ;
+   latent
+      cluster nominal 3 ;
+equations
+   cluster <- 1 + i ;
+   y1      <- 1 + cluster ;
+   y2      <- 1 + cluster ;
+end model
+

@@ -1,0 +1,132 @@
+---
+title: "Exhaustive BIC method"
+subtitle: "2017 dataset"
+author: "Frederick Restrepo Estrada"
+date: "2022"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+
+Made in **R version 4.1.3 (2022-03-10)**
+
+
+Data used: `snapshot2017you.sav`
+
+The dataset is a trimmed version (snapshot) of a dataset made available by CBS. It is not publicly available.
+
+
+Use this template as follows:
+
+1. In the chunk under "Define", indicate what type of restrictions are considered by commenting out all other lines with `resTes` (`ctrl+shift+C`). 
+
+2. Run all chunks (`ctrl+alt+r`).
+
+
+Function for extracting LG output.
+```{r}
+extract.output <- function(outPath, Nob) {
+
+  output <- readLines(con = outPath) # read text lines
+  output <- output[-1] # remove headers that are created when using `write` in LG
+  output <- strsplit(x = output, split = ",") # LG creates `.csv` file
+  maxLength <- max( sapply(X = output, FUN = length) ) # max number of columns in `.csv` file
+  output <- lapply(X = output, FUN = `length<-`, maxLength) # create elements of equal length needed for dataframe
+  output <- as.data.frame( do.call(rbind, output) ) # create dataframe
+  row.names(output) <- NULL
+
+  nams <- unique( output[ , 1] )
+  note <- output[ which( output[ , 4] == 0 ), 5 ]
+  note[is.na(note)] <- "OK"
+
+  LLs <- as.numeric( output[ which( output[ , 5] == "Statistics" ), 6 ] ) # log-likelihoods
+  # LPs <- as.numeric( output[ which( output[ , 5] == "Statistics" ), 8 ] ) # log-posteriors
+  # L2s <- as.numeric( output[ which( output[ , 5] == "Statistics" ), 9 ] ) # likelihood-ratio chi-square statistic
+  # BVRs <- as.numeric( output[ which( output[ , 5] == "Statistics" ), 13 ] ) # total bivariate residuals
+  Npars <- as.numeric( rowSums( !is.na(output[ which( output[, 5] == "Parameters" ), 6:ncol(output) ] ) ) )
+  AIC.LL <- -2*LLs + Npars*2
+  BIC.LL <- -2*LLs + Npars*log(Nob)
+  # BIC.L2 <- L2s - df*log(Nob)
+
+  return( data.frame(nam = nams, LL = LLs, Npars = Npars, AIC.LL, BIC.LL = BIC.LL, note = note) )
+}
+```
+
+Load library.
+```{r}
+library(haven)
+```
+
+
+#### Exhaustive BIC method for a single covariate Z
+
+Define.
+```{r}
+# resTes <- ""
+# resTes <- "R7"
+# resTes <- "R8"
+resTes <- "R"
+
+covars <- c(
+  "age_group",
+  "company_size",
+  "economic_activity",
+  "education_level",
+  "interview_style",
+  "job_length",
+  "migration_background",
+  "software_cluster",
+  "work_hours"
+  )
+
+dat <- read_sav(file = "snapshot2017you.sav")
+N <- nrow(dat)
+```
+
+Extract best model with BIC as evaluation criteria.
+```{r}
+bestModels <- data.frame()
+
+for ( i in 1:length(covars) ) {
+  
+  outputName <- paste0("output-", covars[i], "-2017.csv") # name of table with LG output
+  LGoutput <- extract.output( outPath = paste0(outputName), Nob = N)
+  
+  # remove restricted variants if unnecessary
+  if (resTes == "") {
+    LGoutput <- LGoutput[ !grepl(pattern = "(R7)", x = LGoutput$nam) &
+                          !grepl(pattern = "(R8)", x = LGoutput$nam), ] # ignore all restrictions
+  } else if (resTes == "R8") { 
+    LGoutput <- LGoutput[ !grepl(pattern = "(R7)", x = LGoutput$nam), ] # ignore "Restriction #7"
+  } else if (resTes == "R7") {
+    LGoutput <- LGoutput[ !grepl(pattern = "(R8)", x = LGoutput$nam), ] # ignore "Restriction #8"
+  }
+  
+  if ( any(LGoutput$note != "OK") ) { LGoutput$note <- paste0(LGoutput$note, "; SOME WARNING") }
+  bestModels <- rbind( bestModels, LGoutput[which( LGoutput$BIC.LL == min(LGoutput$BIC.LL) ), ] )
+
+}
+
+bestModels <- cbind(covars, bestModels) # add column with covariate names
+names(bestModels)[1:2] <- c("covariate",  "description") # change column names
+row.names(bestModels) <- NULL
+bestModels
+```
+
+Save.
+```{r}
+write.csv(x = bestModels,
+          file = ifelse( test = resTes == "",
+                         yes = paste0("final-BIC-2017.csv"),
+                         no = paste0("final-BIC-", resTes, "-2017.csv") ),
+          row.names = FALSE)
+```
+
+Clear environment.
+```{r}
+rm(list = ls())
+```
+

@@ -1,0 +1,258 @@
+---
+title: "Stepwise LRT method"
+subtitle: "Simulated datasets"
+author: "Frederick Restrepo Estrada"
+date: "2022"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+
+Made in **R version 4.1.3 (2022-03-10)**
+
+
+Data used: `simDat.dat`, `simDat-step2.dat`
+
+
+Use this template as follows:
+
+- Run all chunks (`ctrl+alt+r`).
+
+
+Define working directory.
+```{r}
+pathR  <- "Y:/Frederick/latentGOLD/simulation3" # path to the folder that contains the LG output of all estimated models
+```
+
+Define functions.
+```{r}
+# function for extracting LG output
+extract.output <- function(outPath, Nob) {
+  
+  output <- readLines(con = outPath) # read text lines
+  output <- output[-1] # remove headers that are created when using `write` in LG
+  output <- strsplit(x = output, split = ",") # LG creates `.csv` file
+  maxLength <- max( sapply(X = output, FUN = length) ) # max number of columns in `.csv` file
+  output <- lapply(X = output, FUN = `length<-`, maxLength) # create elements of equal length needed for dataframe
+  output <- as.data.frame( do.call(rbind, output) ) # create dataframe
+  row.names(output) <- NULL
+  
+  namRep <- strsplit(x = unique( output[ , 1] ), split = " | r", fixed = TRUE)
+  nams <- sapply(X = namRep, FUN = "[[", 1)
+  reps <- sapply(X = namRep, FUN = "[[", 2)
+  note <- output[ which( output[ , 4] == 0 ), 5 ]
+  note[is.na(note)] <- "OK"
+  
+  LLs <- as.numeric( output[ which( output[ , 4] == 1 ), 6 ] ) # log-likelihoods
+  # LPs <- as.numeric( output[ which( output[ , 4] == 1 ), 8 ] ) # log-posteriors
+  # L2s <- as.numeric( output[ which( output[ , 5] == "Statistics" ), 9 ] ) # likelihood-ratio chi-square statistics
+  # BVRs <- as.numeric( output[ which( output[ , 5] == "Statistics" ), 13 ] ) # total bivariate residuals
+  Npars <- as.numeric( rowSums( !is.na(output[ which( output[, 4] == 5 ), 6:ncol(output) ] ) ) )
+  # AIC.LL <- -2*LLs + Npars*2
+  BIC.LL <- -2*LLs + Npars*log(Nob)
+  # BIC.L2 <- L2s - df*log(Nob)
+  
+  return( data.frame(nam = nams, rep = reps, LL = LLs, Npars = Npars, BIC.LL = BIC.LL, note = note) )
+}
+
+# function for comparing models with a LRT
+likelihood.ratio.test <- function(LL1, LL2, Npar1, Npar2) {
+  LR <- -2*(LL1 - LL2)
+  DFdif <- Npar2 - Npar1
+  pval <- pchisq(q = LR, df = DFdif, lower.tail = FALSE)
+  return( list(LRTS = LR, df = DFdif,  p = pval) )
+}
+```
+
+
+#### Stepwise LRT method for a single covariate Z
+
+Define miscellaneous.
+```{r}
+claSep <- "s8" # class separation
+numCat <- "c2" # number of categories
+
+covEff <- rep( rep( rep( c("e10", "e20", "e11", "e21", "e22"), each = 10 ), each = 2 ), each  = 3 ) # covariate effect
+effSiz <- rep( rep( rep( c("S", "M", "L"), each = 10 ), each = 2 ), times = 5 ) # effect size (odds-ratio)
+casWei <- rep( rep( rep( c(2000, 20000), each = 10), times = 3), times = 5)
+repNum <- rep( rep( rep( 1:10, times = 2 ), times = 3), times = 5 )
+
+covEff <- c( rep( "e00",          times = 20 ), covEff )
+effSiz <- c( rep( "N",            times = 20 ), effSiz )
+casWei <- c( rep( c(2000, 20000), each = 10 ), casWei )
+repNum <- c( rep( 1:10,           times = 2 ), repNum )
+
+s <- seq(from = 1, to = length(covEff), by = 10)
+
+e <- data.frame(
+  casWei = casWei[s], covEff = covEff[s], effSiz = effSiz[s],
+  e00 = 0, e01 = 0, e02 = 0,
+  e10 = 0, e11 = 0, e12 = 0,
+  e20 = 0, e21 = 0, e22 = 0
+)
+```
+
+Apply method.
+```{r}
+setwd(dir = pathR)
+
+for ( i in 1:length(casWei) ) {
+
+  simNam  <- paste0( claSep, "-", numCat, "-", covEff[i], "-" , effSiz[i], "-w", casWei[i], "-r", repNum[i] )
+  outNam1 <- paste0("output-", simNam, ".csv") # LG output step1, 3, 4, 5, 6 & 7
+  outNam2 <- paste0("output-step2-", simNam, ".csv") # LG output step2
+
+  a1 <- extract.output(outPath = outNam1, Nob = casWei[i]) # LG output for step1, 3, 4, 5 & 7
+  a2 <- extract.output(outPath = outNam2, Nob = casWei[i]) # LG output for step2
+  
+  ###########
+  ## STEP1 ##
+  ###########
+  
+  resultLRT <- likelihood.ratio.test(
+    LL1 =   a1[ a1$nam == "y1: no; y2: no"                  , "LL" ],
+    LL2 =   a1[ a1$nam == "y1: non-uniform; y2: non-uniform", "LL" ],
+    Npar1 = a1[ a1$nam == "y1: no; y2: no"                  , "Npars" ],
+    Npar2 = a1[ a1$nam == "y1: non-uniform; y2: non-uniform", "Npars" ] )
+  
+  if (resultLRT$p > 0.05) {
+    y1dif4 <- "y1: no"
+    y2dif4 <- "y2: no"
+  } else {
+  
+    ###########
+    ## STEP2 ##
+    ###########
+      
+    # M2.0.1 vs. M2.1.1
+    resultLRT <- likelihood.ratio.test(
+      LL1 =   a2[ a2$nam == "y1: no"         , "LL" ], 
+      LL2 =   a2[ a2$nam == "y1: non-uniform", "LL" ],
+      Npar1 = a2[ a2$nam == "y1: no"         , "Npars" ],
+      Npar2 = a2[ a2$nam == "y1: non-uniform", "Npars" ] )
+    # DIF y1 (based on step2)
+    y1dif2 <- ifelse( test = resultLRT$p > 0.05, yes = "y1: no", no = "y1: non-uniform" )
+  
+    # M2.0.2 vs. 2.1.2
+    resultLRT <- likelihood.ratio.test(
+      LL1 =   a2[ a2$nam == "y2: no"         , "LL" ], 
+      LL2 =   a2[ a2$nam == "y2: non-uniform", "LL" ],
+      Npar1 = a2[ a2$nam == "y2: no"         , "Npars" ],
+      Npar2 = a2[ a2$nam == "y2: non-uniform", "Npars" ] )
+    # DIF y2 (based on step2)
+    y2dif2 <- ifelse(test = resultLRT$p > 0.05, yes = "y2: no", no = "y2: non-uniform")
+    
+    if (paste0(y1dif2, "; ", y2dif2) == "y1: no; y2: no") {
+      print(paste0("failure step2; data: ", simNam, "; M3.0 = M1.0") )
+    } else {
+    
+    ###########
+    ## STEP3 ##
+    ###########
+      
+      # M1.0 vs. M3.0
+      resultLRT <- likelihood.ratio.test(
+        LL1 =   a1[ a1$nam == "y1: no; y2: no"            , "LL" ], # M1.0
+        LL2 =   a1[ a1$nam == paste0(y1dif2, "; ", y2dif2), "LL" ], # M3.0
+        Npar1 = a1[ a1$nam == "y1: no; y2: no"            , "Npars" ],
+        Npar2 = a1[ a1$nam == paste0(y1dif2, "; ", y2dif2), "Npars" ] )
+      if (resultLRT$p > 0.05) { print( paste0("failure step3; M1.0 vs. M3.0; data: ", simNam) ) }
+      
+      # M3.0 vs. M1.1
+      resultLRT <- likelihood.ratio.test(
+        LL1   = a1[ a1$nam == paste0(y1dif2, "; ", y2dif2)      , "LL" ], # M3.0
+        LL2   = a1[ a1$nam == "y1: non-uniform; y2: non-uniform", "LL" ], # M1.1
+        Npar1 = a1[ a1$nam == paste0(y1dif2, "; ", y2dif2)      , "Npars" ],
+        Npar2 = a1[ a1$nam == "y1: non-uniform; y2: non-uniform", "Npars" ] )
+      if (resultLRT$p <= 0.05) { print( paste0("failure step3; M3.0 vs. M1.1; data: ", simNam) ) }
+    
+      ###########
+      ## STEP4 ##
+      ###########
+      
+      # M4.1 vs. M3.0
+      if (y1dif2 == "y1: non-uniform") { # if there is something to be tested
+        resultLRT <- likelihood.ratio.test(
+          LL1 =   a1[ a1$nam == paste0("y1: uniform; ", y2dif2), "LL" ], # M4.1
+          LL2 =   a1[ a1$nam == paste0(y1dif2,    "; ", y2dif2), "LL" ], # M3.0
+          Npar1 = a1[ a1$nam == paste0("y1: uniform; ", y2dif2), "Npars" ],
+          Npar2 = a1[ a1$nam == paste0(y1dif2,    "; ", y2dif2), "Npars" ] )
+      }
+      # DIF y1 (based on step4)
+      if (y1dif2 == "y1: no") { y1dif4 <- "y1: no"
+      } else if (y1dif2 == "y1: non-uniform") {
+        y1dif4 <- ifelse(test = resultLRT$p > 0.05, yes = "y1: uniform", no = "y1: non-uniform") 
+      }
+  
+      # M4.2 vs. M3.0
+      if (y2dif2 == "y2: non-uniform") { # if there is something to be tested
+        resultLRT <- likelihood.ratio.test(
+          LL1 =   a1[ a1$nam == paste0(y1dif2, "; y2: uniform" ), "LL" ], # M4.2
+          LL2 =   a1[ a1$nam == paste0(y1dif2, "; ", y2dif2    ), "LL" ], # M3.0
+          Npar1 = a1[ a1$nam == paste0(y1dif2, "; y2: uniform" ), "Npars" ],
+          Npar2 = a1[ a1$nam == paste0(y1dif2, "; ", y2dif2    ), "Npars" ] )
+      }
+      # DIF y2 (based on step4)
+      if (y2dif2 == "y2: no") { y2dif4 <- "y2: no"
+      } else if (y2dif2 == "y2: non-uniform") {
+        y2dif4 <- ifelse(test = resultLRT$p > 0.05, yes = "y2: uniform", no = "y2: non-uniform" )
+      }
+      
+      ###########
+      ## STEP5 ##
+      ###########
+      
+      # M5.0 vs. M3.0
+      resultLRT <- likelihood.ratio.test(
+        LL1 =   a1[ a1$nam == paste0(y1dif4, "; ", y2dif4), "LL" ], # M5.0
+        LL2 =   a1[ a1$nam == paste0(y1dif2, "; ", y2dif2), "LL" ], # M3.0
+        Npar1 = a1[ a1$nam == paste0(y1dif4, "; ", y2dif4), "Npars" ],
+        Npar2 = a1[ a1$nam == paste0(y1dif2, "; ", y2dif2), "Npars" ] )
+      if (resultLRT$p <= 0.05) { print( paste0("failure step5; M5.0 vs. M3.0; data: ", simNam) ) }
+    }
+  }
+  
+  finMod <- paste0(y1dif4, "; ", y2dif4)
+  
+  # save results in a dataframe
+  if (finMod == "y1: no; y2: no") {
+    e[e$covEff == covEff[i] & e$effSiz == effSiz[i] & e$casWei == casWei[i], "e00"] <-
+      e[e$covEff == covEff[i] & e$effSiz == effSiz[i] & e$casWei == casWei[i], "e00"] + 1
+  } else if (finMod == "y1: uniform; y2: no") {
+    e[e$covEff == covEff[i] & e$effSiz == effSiz[i] & e$casWei == casWei[i], "e10"] <-
+      e[e$covEff == covEff[i] & e$effSiz == effSiz[i] & e$casWei == casWei[i], "e10"] + 1
+  } else if (finMod == "y1: non-uniform; y2: no") {
+    e[e$covEff == covEff[i] & e$effSiz == effSiz[i] & e$casWei == casWei[i], "e20"] <-
+      e[e$covEff == covEff[i] & e$effSiz == effSiz[i] & e$casWei == casWei[i], "e20"] + 1
+  } else if (finMod == "y1: no; y2: uniform") {
+    e[e$covEff == covEff[i] & e$effSiz == effSiz[i] & e$casWei == casWei[i], "e01"] <-
+      e[e$covEff == covEff[i] & e$effSiz == effSiz[i] & e$casWei == casWei[i], "e01"] + 1
+  } else if (finMod == "y1: uniform; y2: uniform") {
+    e[e$covEff == covEff[i] & e$effSiz == effSiz[i] & e$casWei == casWei[i], "e11"] <-
+      e[e$covEff == covEff[i] & e$effSiz == effSiz[i] & e$casWei == casWei[i], "e11"] + 1
+  } else if (finMod == "y1: non-uniform; y2: uniform") {
+    e[e$covEff == covEff[i] & e$effSiz == effSiz[i] & e$casWei == casWei[i], "e21"] <-
+      e[e$covEff == covEff[i] & e$effSiz == effSiz[i] & e$casWei == casWei[i], "e21"] + 1
+  } else if (finMod == "y1: no; y2: non-uniform") {
+    e[e$covEff == covEff[i] & e$effSiz == effSiz[i] & e$casWei == casWei[i], "e02"] <-
+      e[e$covEff == covEff[i] & e$effSiz == effSiz[i] & e$casWei == casWei[i], "e02"] + 1
+  } else if (finMod == "y1: uniform; y2: non-uniform") {
+    e[e$covEff == covEff[i] & e$effSiz == effSiz[i] & e$casWei == casWei[i], "e12"] <-
+      e[e$covEff == covEff[i] & e$effSiz == effSiz[i] & e$casWei == casWei[i], "e12"] + 1
+  } else if (finMod == "y1: non-uniform; y2: non-uniform") {
+    e[e$covEff == covEff[i] & e$effSiz == effSiz[i] & e$casWei == casWei[i], "e22"] <-
+      e[e$covEff == covEff[i] & e$effSiz == effSiz[i] & e$casWei == casWei[i], "e22"] + 1
+  }
+  
+}
+```
+
+Save results.
+```{r}
+e <- e[ with( data = e, expr = order(casWei, covEff) ), ]
+write.csv(x = e, file = paste0("final-LRT-", claSep, "-", numCat, ".csv"), row.names = FALSE)
+```
+

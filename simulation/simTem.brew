@@ -1,0 +1,61 @@
+//LG5.1//
+version = 5.1
+infile 'exampleData.dat' quote = single
+
+model
+title '<%=simNam%>' ;
+options
+   algorithm  
+      tolerance=1e-008 emtolerance=0.01 emiterations=250 nriterations=50 ;
+   startvalues
+      seed=0 sets=16 tolerance=1e-005 iterations=50 ;
+   bayes
+      categorical=0 variances=0 latent=0 poisson=0 ;
+   montecarlo
+      seed=0 replicates=500 tolerance=1e-008 ;
+   quadrature nodes=10 ;
+   missing excludeall ;
+   output
+      parameters=first profile probmeans=posterior ;
+      outfile 'simDat.dat' simulation=1 seed=<%=staSee%> ;
+variables
+   caseid id ;
+   caseweight w<%=casWei%> ;
+   dependent y1 nominal 3, y2 nominal 3 ;
+   independent i nominal, z nominal ;
+   latent
+      cluster nominal 3 ;
+equations
+   cluster <- 1 + i + z ;
+   y1      <- 1 + cluster <%=y1Equ%> ;
+   y2      <- 1 + cluster <%=y2Equ%> ;
+
+{
+// estimates from 'snapshot2016you' (rounded)
+   -0.1604 // LG intercept
+   -0.8187 // LG intercept
+      0.2375 // LG i
+	  -0.0436 // LG i
+   0.2231 // ln(1.25)
+   -0.2231 // -ln(1.25)
+
+// 0.8 diagonal; 0.1 off-diagonal
+   -2.0794 // -3*ln(2)
+   -2.0794 // -3*ln(2)
+      4.1589 // 6*ln(2)
+	  2.0794 // 3*ln(2)
+	  2.0794 // 3*ln(2)
+	  4.1589 // 6*ln(2)
+   <%=y1Par%>
+
+// 0.8 diagonal; 0.1 off-diagonal
+   -2.0794
+   -2.0794
+      4.1589
+	  2.0794
+	  2.0794
+	  4.1589
+   <%=y2Par%>
+}
+
+end model

@@ -1,0 +1,3 @@
+//LG5.1//
+version = 5.1
+infile '<%=datPat%>'
